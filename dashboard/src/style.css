@@ -1,0 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1f2937;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4b5563;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
+}
+
+/* Status colors */
+.status-running {
+  @apply bg-blue-500 animate-pulse;
+}
+
+.status-completed {
+  @apply bg-green-500;
+}
+
+.status-failed {
+  @apply bg-red-500;
+}
+
+.status-pending {
+  @apply bg-gray-500;
+}
+
+.status-stopped {
+  @apply bg-yellow-500;
+}

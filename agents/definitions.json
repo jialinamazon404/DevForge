@@ -1,0 +1,279 @@
+{
+  "agents": {
+    "gatekeeper": {
+      "name": "守门人",
+      "name_en": "Gatekeeper",
+      "icon": "🚪",
+      "goal": "维护中央状态机，解析请求，路由决策，派发任务给下游 Agent",
+      "tools": ["read", "write", "edit"],
+      "input": "原始用户请求",
+      "output": {
+        "route": "CRITICAL|BUILD|REVIEW|QUERY|SECURITY",
+        "pipeline": {
+          "id": "uuid",
+          "stages": ["product", "architect", "scout", "developer", "tester", "ops", "evolver"],
+          "context": {}
+        }
+      }
+    },
+    "product": {
+      "name": "产品经理",
+      "name_en": "Product Manager",
+      "icon": "📋",
+      "goal": "理解用户需求，生成 PRD（用户故事、功能清单、验收标准）",
+      "tools": ["read", "write"],
+      "input": "原始用户需求",
+      "thinking_template": [
+        "1. 理解用户想要解决什么问题",
+        "2. 识别核心用户和场景",
+        "3. 拆解功能需求",
+        "4. 定义验收标准"
+      ],
+      "output": {
+        "prd": {
+          "problem": "用户痛点描述",
+          "users": ["用户画像"],
+          "stories": [{"id": "US-001", "as_a": "...", "i_want": "...", "so_that": "...", "acceptance": ["标准1", "标准2"]}],
+          "features": [{"id": "F-001", "name": "功能名", "priority": "HIGH|MEDIUM|LOW", "description": "..."}],
+          "constraints": ["约束条件"]
+        },
+        "markdown": "# PRD 文档内容"
+      },
+      "output_files": {
+        "thinking": "thinking/01-product.json",
+        "output": "output/prd.md"
+      }
+    },
+    "architect": {
+      "name": "架构师",
+      "name_en": "Architect",
+      "icon": "🏗️",
+      "goal": "基于 PRD 生成 OpenSpec（系统设计、API 规范、数据模型、技术选型）",
+      "tools": ["read", "write", "grep", "glob"],
+      "input": "PRD 文档",
+      "thinking_template": [
+        "1. 分析功能范围和技术边界",
+        "2. 设计系统架构（组件划分）",
+        "3. 设计 API 接口",
+        "4. 设计数据模型",
+        "5. 确定技术选型",
+        "6. 识别风险和依赖"
+      ],
+      "output": {
+        "openspec": {
+          "version": "1.0",
+          "requirements": [{"id": "REQ-001", "source": "US-001", "description": "...", "priority": "HIGH"}],
+          "architecture": {
+            "components": [{"name": "组件名", "responsibility": "...", "tech_stack": "..."}],
+            "data_flow": ["流程描述"]
+          },
+          "api": {
+            "endpoints": [{"method": "GET|POST|...", "path": "/api/...", "request": "...", "response": "..."}]
+          },
+          "data_model": {
+            "entities": [{"name": "实体名", "fields": [{"name": "...", "type": "..."}]}]
+          },
+          "tech_stack": {"frontend": "...", "backend": "...", "database": "..."},
+          "decisions": [{"id": "DEC-001", "topic": "...", "decision": "...", "rationale": "..."}]
+        }
+      },
+      "output_files": {
+        "thinking": "thinking/02-architect.json",
+        "output": "output/openspec.md"
+      }
+    },
+    "scout": {
+      "name": "侦察兵",
+      "name_en": "Scout",
+      "icon": "🔍",
+      "goal": "验证 OpenSpec 可行性，探索代码库，识别风险和机会",
+      "tools": ["grep", "glob", "read", "bash"],
+      "input": "OpenSpec 文档 + 目标代码库",
+      "thinking_template": [
+        "1. 理解 OpenSpec 的技术要求",
+        "2. 探索现有代码库结构",
+        "3. 分析依赖关系",
+        "4. 验证技术选型可行性",
+        "5. 识别潜在风险",
+        "6. 搜索相似实现作为参考"
+      ],
+      "output": {
+        "findings": [
+          {"type": "feasibility", "location": "path", "description": "描述", "severity": "MEDIUM"}
+        ],
+        "similar_implementations": [],
+        "dependency_analysis": {"existing": [], "new": []},
+        "recommendations": ["建议1", "建议2"]
+      },
+      "output_files": {
+        "thinking": "thinking/03-scout.json",
+        "output": "output/scout-report.md"
+      }
+    },
+    "developer": {
+      "name": "开发者",
+      "name_en": "Developer",
+      "icon": "💻",
+      "goal": "基于 OpenSpec 实现代码，编写测试，Git 提交",
+      "tools": ["read", "write", "edit", "bash", "git"],
+      "input": "OpenSpec 文档 + Scout 报告",
+      "thinking_template": [
+        "1. 理解要实现的功能范围",
+        "2. 规划文件结构和实现顺序",
+        "3. TDD 循环（RED-GREEN-REFACTOR）",
+        "4. 确保代码符合规范",
+        "5. 自测验证"
+      ],
+      "output": {
+        "branch": "feature/{pipelineId}",
+        "files": [],
+        "commits": [],
+        "test_results": {"passed": 0, "failed": 0, "total": 0},
+        "pr_url": null
+      },
+      "output_files": {
+        "thinking": "thinking/04-developer.json",
+        "output": "output/dev-summary.md"
+      }
+    },
+    "tester": {
+      "name": "测试工程师",
+      "name_en": "Tester",
+      "icon": "🧪",
+      "goal": "使用 gstack 执行集成测试，生成测试报告",
+      "tools": ["browse", "qa", "benchmark"],
+      "input": "开发者产出代码 + PR URL",
+      "thinking_template": [
+        "1. 理解要测试的功能点",
+        "2. 规划测试用例覆盖",
+        "3. 执行测试",
+        "4. 分析失败原因",
+        "5. 整理测试报告"
+      ],
+      "output": {
+        "summary": {"total": 0, "passed": 0, "failed": 0, "skipped": 0},
+        "bugs": [],
+        "performance": {"lcp": "0", "fid": "0", "cls": "0", "load_time": "0"}
+      },
+      "output_files": {
+        "thinking": "thinking/05-tester.json",
+        "output": "output/test-report.md"
+      }
+    },
+    "ops": {
+      "name": "运维工程师",
+      "name_en": "DevOps",
+      "icon": "⚙️",
+      "goal": "配置 Docker、CI/CD、部署脚本、环境变量",
+      "tools": ["read", "write", "bash"],
+      "input": "OpenSpec + 开发者代码",
+      "thinking_template": [
+        "1. 理解部署环境需求",
+        "2. 设计 Dockerfile",
+        "3. 配置 CI/CD 流水线",
+        "4. 准备环境变量模板",
+        "5. 编写部署脚本"
+      ],
+      "output": {
+        "dockerfile": "FROM node:18\n...",
+        "docker_compose": "version: '3.8'...",
+        "ci_config": {"provider": "github-actions", "stages": ["test", "build", "deploy"]},
+        "deployment_script": "#!/bin/bash\necho done",
+        "env_template": {"NODE_ENV": "production"}
+      },
+      "output_files": {
+        "thinking": "thinking/06-ops.json",
+        "output": "output/ops-config.md"
+      }
+    },
+    "ghost": {
+      "name": "安全幽灵",
+      "name_en": "Security Ghost",
+      "icon": "👻",
+      "goal": "安全审计，日志分析，识别潜在风险（只读，不修改）",
+      "tools": ["read", "grep"],
+      "input": "代码 + 日志",
+      "thinking_template": [
+        "1. 扫描敏感信息泄露风险",
+        "2. 检查认证/授权实现",
+        "3. 分析输入验证",
+        "4. 检查依赖安全问题",
+        "5. 生成安全报告"
+      ],
+      "output": {
+        "secrets_found": [],
+        "security_issues": [],
+        "compliance": {"passed": [], "failed": []}
+      },
+      "output_files": {
+        "thinking": "thinking/07-ghost.json",
+        "output": "output/security-report.md"
+      }
+    },
+    "creative": {
+      "name": "创意总监",
+      "name_en": "Creative Director",
+      "icon": "🎨",
+      "goal": "设计评审，UX 评估，体验优化建议",
+      "tools": ["read", "browse", "screenshot"],
+      "input": "PRD + 开发者产出 + 截图",
+      "thinking_template": [
+        "1. 评估 UI 一致性",
+        "2. 检查用户体验流程",
+        "3. 识别可优化点",
+        "4. 提出创意建议"
+      ],
+      "output": {
+        "design_review": {
+          "consistency": {"score": 8, "issues": []},
+          "usability": {"score": 7, "issues": []},
+          "aesthetics": {"score": 8, "issues": []}
+        },
+        "screenshots": [],
+        "recommendations": []
+      },
+      "output_files": {
+        "thinking": "thinking/08-creative.json",
+        "output": "output/design-review.md"
+      }
+    },
+    "evolver": {
+      "name": "进化顾问",
+      "name_en": "Evolver",
+      "icon": "🔮",
+      "goal": "提供未来可拓展和发展的建议（技术改进 + 业务增长）",
+      "tools": ["read", "write", "analysis"],
+      "input": "所有阶段产出物",
+      "thinking_template": [
+        "1. 分析当前实现的技术边界",
+        "2. 思考未来可能的扩展场景",
+        "3. 识别技术债务和架构改进点",
+        "4. 思考业务增长方向",
+        "5. 提出具体可执行的建议"
+      ],
+      "output": {
+        "technical_improvements": [
+          {"id": "TI-001", "title": "标题", "description": "描述", "priority": "HIGH|MEDIUM|LOW", "effort": "低|中|高"}
+        ],
+        "business_growth": [
+          {"id": "BG-001", "title": "标题", "description": "描述", "priority": "HIGH|MEDIUM|LOW", "impact": "高|中|低"}
+        ],
+        "tech_debt": [
+          {"id": "TD-001", "title": "标题", "description": "描述", "severity": "HIGH|MEDIUM|LOW", "refactor_suggestion": "重构建议"}
+        ],
+        "next_steps": ["下一步行动建议"]
+      },
+      "output_files": {
+        "thinking": "thinking/09-evolver.json",
+        "output": "output/evolver-report.md"
+      }
+    }
+  },
+  "routes": {
+    "CRITICAL": ["product", "architect", "creative", "developer", "tester", "evolver"],
+    "BUILD": ["product", "architect", "scout", "developer", "tester", "ops", "evolver"],
+    "REVIEW": ["creative", "ghost", "tester"],
+    "QUERY": ["scout"],
+    "SECURITY": ["ghost", "architect"]
+  }
+}

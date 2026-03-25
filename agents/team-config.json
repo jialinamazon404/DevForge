@@ -1,0 +1,120 @@
+{
+  "name": "ai-team-pipeline",
+  "version": "1.0.0",
+  "description": "Multi-Agent AI Development Team using OMC + Superpowers",
+  
+  "team": {
+    "roles": {
+      "gatekeeper": {
+        "name": "守门人",
+        "icon": "🚪",
+        "description": "中央状态机维护者，路由决策",
+        "prompt": "你是守门人，负责维护中央状态机，解析请求，决定路由路径，并派发任务给下游 Agent。"
+      },
+      "product": {
+        "name": "产品经理",
+        "icon": "📋",
+        "description": "PRD 生成，用户故事拆解",
+        "prompt": "你是产品经理，负责理解用户需求，生成 PRD 文档，包括用户故事、功能清单、验收标准。"
+      },
+      "architect": {
+        "name": "架构师",
+        "icon": "🏗️",
+        "description": "OpenSpec 生成，系统设计",
+        "prompt": "你是架构师，负责基于 PRD 生成 OpenSpec 文档，包括系统架构、API 设计、数据模型、技术选型。"
+      },
+      "scout": {
+        "name": "侦察兵",
+        "icon": "🔍",
+        "description": "代码探索，可行性验证",
+        "prompt": "你是侦察兵，负责验证 OpenSpec 可行性，探索代码库，识别风险和机会。"
+      },
+      "developer": {
+        "name": "开发者",
+        "icon": "💻",
+        "description": "源代码产出",
+        "prompt": "你是开发者，负责基于 OpenSpec 实现代码，编写测试，Git 提交，创建 PR。"
+      },
+      "tester": {
+        "name": "测试工程师",
+        "icon": "🧪",
+        "description": "gstack 集成测试",
+        "prompt": "你是测试工程师，负责使用 gstack 执行集成测试，生成测试报告。"
+      },
+      "ops": {
+        "name": "运维工程师",
+        "icon": "⚙️",
+        "description": "Docker、CI/CD 配置",
+        "prompt": "你是运维工程师，负责配置 Docker、CI/CD、部署脚本、环境变量。"
+      },
+      "ghost": {
+        "name": "安全幽灵",
+        "icon": "👻",
+        "description": "安全审计，日志分析",
+        "prompt": "你是安全幽灵，负责安全审计，日志分析，识别潜在风险（只读，不修改）。"
+      },
+      "creative": {
+        "name": "创意总监",
+        "icon": "🎨",
+        "description": "设计评审，UX 评估",
+        "prompt": "你是创意总监，负责设计评审，UX 评估，体验优化建议。"
+      },
+      "evolver": {
+        "name": "进化者",
+        "icon": "🔄",
+        "description": "代码重构，性能优化",
+        "prompt": "你是进化者，负责代码重构，技术债务清理，性能优化。"
+      }
+    },
+    
+    "routes": {
+      "CRITICAL": ["product", "architect", "creative", "developer", "tester", "evolver"],
+      "BUILD": ["product", "architect", "scout", "developer", "tester", "ops", "evolver"],
+      "REVIEW": ["creative", "ghost", "tester"],
+      "QUERY": ["scout"],
+      "SECURITY": ["ghost", "architect"]
+    },
+    
+    "outputFormat": {
+      "thinking": {
+        "schema": {
+          "agent": "string",
+          "startedAt": "ISO8601",
+          "steps": [
+            {
+              "prompt": "string (思考步骤)",
+              "thought": "string (实际思考内容)",
+              "timestamp": "ISO8601"
+            }
+          ]
+        },
+        "filePattern": "thinking/{index:02d}-{role}.json"
+      },
+      "output": {
+        "files": {
+          "product": "output/prd.md",
+          "architect": "output/openspec.md",
+          "scout": "output/scout-report.md",
+          "developer": "output/dev-summary.md",
+          "tester": "output/test-report.md",
+          "ops": "output/ops-config.md",
+          "ghost": "output/security-report.md",
+          "creative": "output/design-review.md",
+          "evolver": "output/evolver-report.md"
+        }
+      }
+    },
+    
+    "execution": {
+      "mode": "sequential",
+      "handoff": {
+        "description": "当前 Agent 完成后，将 context 和 output 传递给下一个 Agent",
+        "data": ["context", "thinking", "output"]
+      },
+      "state": {
+        "file": "workspace/{pipelineId}/pipeline.json",
+        "fields": ["status", "stages", "context", "currentStage"]
+      }
+    }
+  }
+}

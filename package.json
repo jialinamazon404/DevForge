@@ -1,0 +1,21 @@
+{
+  "name": "auto-pipeline-cli",
+  "author": "jialin.chen",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "AI Team Pipeline CLI",
+  "main": "orchestrator.js",
+  "scripts": {
+    "dev": "./start.sh",
+    "start": "./start.sh",
+    "api": "cd dashboard/server && node server.js",
+    "web": "cd dashboard && npm run dev",
+    "orchestrator": "node orchestrator.js",
+    "run": "node agent-runner.js",
+    "run:all": "node agent-runner.js --poll"
+  },
+  "dependencies": {
+    "axios": "^1.13.6",
+    "uuid": "^9.0.0"
+  }
+}
