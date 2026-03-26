@@ -1,14 +1,33 @@
 # DevForge - AI Team Pipeline
 
-> **版本**: v2.1.0
+> **版本**: v2.2.0
 > 基于 **OpenCode + Superpowers** 的多角色 AI 开发团队系统。
 
-## v2.1.0 更新内容
+## v2.2.0 更新内容
 
-### 🚀 Sprint 模式
-- 支持 Product → Architect → Scout → Developer → Tester → Ops → Evolver 完整流程
-- 每个角色读取前序角色的输出作为输入
-- Sprint/Iteration 状态管理，支持暂停、继续、重跑
+### ⏱️ Developer 超时优化
+- Developer 超时从 5 分钟增加到 10 分钟
+- 适配复杂代码生成场景
+
+### 🔒 UI 执行锁定
+- SprintDetail.vue 新增锁定逻辑
+- 当前角色执行中时禁用"确认输出"按钮
+- 防止用户跳过正在执行的角色
+
+### 🧪 Tester 环境适配
+- Tester 提示词增加环境说明
+- 无后端环境时可进行静态代码审查
+- 报告保留在 workspace，界面只显示摘要
+
+### 📊 Tester 输出摘要
+- 界面只显示 Bug 数量或环境问题
+- 完整报告保存到 workspace/tester/report.json
+- 支持环境问题/Bug 数量/测试通过三种状态展示
+
+### ⚙️ Ops 自动化
+- Ops 角色自动读取 Developer 产出目录的启动命令
+- 基于 README.md 或 package.json 生成 Dockerfile
+- 生成 docker-compose.yml 和 CI/CD 部署脚本
 
 ### 📐 OpenSpec 贯穿架构与开发
 - **Architect** 生成 OpenSpec 架构文档 (YAML)

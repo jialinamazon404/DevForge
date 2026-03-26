@@ -61,7 +61,7 @@ const AGENT_MODELS = {
 const TIMEOUT_CONFIG = {
   product: 120000,      // 2分钟
   architect: 120000,   // 2分钟
-  developer: 300000,    // 5分钟（代码实现更复杂）
+  developer: 600000,    // 10分钟（代码实现更复杂）
   tester: 180000,
   scout: 90000,
   ops: 90000
@@ -695,6 +695,13 @@ ${workspacePath || `workspace/${pipelineId}`}/developer
 3. **执行测试** - 运行测试并记录结果
 4. **报告 Bug** - 发现的问题要详细记录
 
+## 环境说明
+
+如果后端服务需要特定环境才能启动（如数据库依赖、端口占用等），
+可以先进行代码审查和静态分析，在报告中说明：
+- "无法启动后端服务（缺少环境），进行静态代码审查"
+- 列出代码中发现的问题
+
 ## 输出要求
 
 生成测试报告，包含：
@@ -721,6 +728,39 @@ ${workspacePath || `workspace/${pipelineId}`}/developer
 ## 输出格式
 
 保存为 JSON 格式到: ${workspacePath || `workspace/${pipelineId}`}/tester/report.json
+`;
+}
+
+/**
+ * 生成 Ops Agent 的提示词
+ */
+function generateOpsPrompt(context) {
+  const { pipelineId, rawInput, workspacePath, developerOutput } = context;
+  
+  return `# 角色：运维工程师 (DevOps)
+
+## 用户需求
+${rawInput}
+
+## 开发者产出位置
+${workspacePath || `workspace/${pipelineId}`}/developer
+
+## 你的任务
+
+1. **读取启动命令** - 在开发者产出目录中找到启动命令（通常在 README.md 或 package.json 中）
+2. **生成 Dockerfile** - 为前端和后端分别生成 Dockerfile
+3. **生成部署脚本** - 创建 docker-compose.yml 或 Kubernetes 配置
+4. **生成 CI/CD** - 创建 GitHub Actions 工作流
+
+## 输出要求
+
+生成以下文件：
+- Dockerfile (前端)
+- Dockerfile (后端)
+- docker-compose.yml
+- .github/workflows/deploy.yml (可选)
+
+保存到: ${workspacePath || `workspace/${pipelineId}`}/ops/
 `;
 }
 
@@ -994,6 +1034,14 @@ async function runIteration(sprintId, roleIndex) {
         openspec: context.openspec,
         developerOutput: context.developerOutput,
         codePaths: context.codePaths
+      });
+      break;
+    case 'ops':
+      prompt = generateOpsPrompt({
+        sprintId,
+        rawInput: context.rawInput,
+        workspacePath,
+        developerOutput: context.developerOutput
       });
       break;
     default:

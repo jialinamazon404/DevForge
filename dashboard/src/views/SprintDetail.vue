@@ -156,13 +156,46 @@
         <div class="bg-vue-darker rounded-vue p-4">
           <h3 class="text-gray-400 text-sm mb-2">Agent 输出</h3>
           <div class="text-xs text-gray-500 mb-2">
-            状态: {{ currentIteration?.status }} | 有输出: {{ !!currentIteration?.output }}
+            状态: {{ currentIteration?.status }}
           </div>
-          <div v-if="currentIteration?.output || currentIteration?.status === 'running'" class="space-y-4">
+          
+          <!-- Tester 角色：显示摘要 -->
+          <div v-if="currentIteration?.role === 'tester' && testerSummary" class="space-y-3">
+            <div v-if="testerSummary.type === 'environment'" class="bg-yellow-900/30 border border-yellow-700 rounded-vue p-4">
+              <div class="flex items-center space-x-2 text-yellow-400">
+                <span class="text-xl">⚠️</span>
+                <span class="font-medium">{{ testerSummary.message }}</span>
+              </div>
+            </div>
+            <div v-else-if="testerSummary.type === 'bugs'" class="bg-red-900/30 border border-red-700 rounded-vue p-4">
+              <div class="flex items-center space-x-2 text-red-400">
+                <span class="text-xl">🐛</span>
+                <span class="font-medium">发现 {{ testerSummary.count }} 个 Bug</span>
+              </div>
+            </div>
+            <div v-else-if="testerSummary.type === 'issues'" class="bg-orange-900/30 border border-orange-700 rounded-vue p-4">
+              <div class="flex items-center space-x-2 text-orange-400">
+                <span class="text-xl">⚠️</span>
+                <span class="font-medium">{{ testerSummary.message }}</span>
+              </div>
+            </div>
+            <div v-else class="bg-green-900/30 border border-green-700 rounded-vue p-4">
+              <div class="flex items-center space-x-2 text-green-400">
+                <span class="text-xl">✅</span>
+                <span class="font-medium">{{ testerSummary.message }}</span>
+              </div>
+            </div>
+            <div class="text-gray-400 text-sm">
+              完整报告保存在 workspace 中
+            </div>
+          </div>
+          
+          <!-- 其他角色：显示完整输出 -->
+          <div v-else-if="currentIteration?.output || currentIteration?.status === 'running'" class="space-y-4">
             <pre class="text-gray-300 text-sm whitespace-pre-wrap overflow-auto max-h-96">{{ currentIteration.output }}</pre>
             
             <!-- 确认/重新执行按钮 -->
-            <div v-if="currentIteration?.output && currentIteration.status !== 'running'" class="flex justify-end space-x-3 pt-4 border-t border-vue-border">
+            <div v-if="canConfirm" class="flex justify-end space-x-3 pt-4 border-t border-vue-border">
               <button
                 @click="rerunIteration"
                 class="px-4 py-2 bg-yellow-600/20 border border-yellow-600/50 text-yellow-400 hover:bg-yellow-600/30 rounded-vue text-sm transition-all"
@@ -175,6 +208,10 @@
               >
                 确认输出 ✓
               </button>
+            </div>
+            <div v-else-if="currentIteration?.status === 'running'" class="text-center py-4">
+              <div class="animate-spin w-8 h-8 border-2 border-vue-primary border-t-transparent rounded-full mx-auto mb-2"></div>
+              <p class="text-gray-400">Agent 正在执行...</p>
             </div>
           </div>
           <div v-else-if="currentIteration?.status === 'running'" class="text-center py-4">
@@ -276,8 +313,39 @@ const canInput = computed(() => {
   return ['waiting_input', 'ready', 'pending'].includes(iter.status)
 })
 
+// 当前 iteration 是否可以确认（必须在完成状态且有输出）
+const canConfirm = computed(() => {
+  const iter = currentIteration.value
+  if (!iter) return false
+  return iter.status === 'completed' && iter.output && iter.output.trim().length > 0
+})
+
 // Product 角色特殊处理：不需要额外输入，直接使用冲刺需求
 const isProductRole = computed(() => currentIteration.value?.role === 'product')
+
+// Tester 输出摘要（解析 bug 数量或环境问题）
+const testerSummary = computed(() => {
+  if (currentIteration.value?.role !== 'tester') return null
+  const output = currentIteration.value?.output || ''
+  
+  // 检查是否有环境问题
+  if (output.includes('环境') || output.includes('缺少环境') || output.includes('无法启动')) {
+    return { type: 'environment', message: '环境问题无法进行代码审查' }
+  }
+  
+  // 尝试提取 bug 数量
+  const bugMatch = output.match(/(\d+)\s*个\s*(bug|问题|缺陷)/i)
+  if (bugMatch) {
+    return { type: 'bugs', count: parseInt(bugMatch[1]) }
+  }
+  
+  // 检查是否有失败/错误
+  if (output.includes('失败') || output.includes('error') || output.includes('Error')) {
+    return { type: 'issues', message: '存在测试问题，请查看完整报告' }
+  }
+  
+  return { type: 'success', message: '测试通过或无明显问题' }
+})
 
 // 第一个角色可以自动执行（不需要用户输入）
 const canAutoExecute = computed(() => {
