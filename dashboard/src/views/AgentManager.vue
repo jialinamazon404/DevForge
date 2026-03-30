@@ -502,7 +502,8 @@ const agents = [
     tools: ['重构', '性能分析', '代码审查'],
     route: ['evolver'],
     skills: [
-      { name: 'retro', description: '代码重构、技术债务清理、性能优化' }
+      { name: 'retro', description: '代码重构、技术债务清理、性能优化' },
+      { name: 'tech-debt', description: '技术债务识别与分析（已安装）' }
     ]
   }
 ]

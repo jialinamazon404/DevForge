@@ -259,12 +259,12 @@ database:
 | gatekeeper | `opencode/big-pickle` | - | 路由决策 |
 | ba | `opencode/big-pickle` | brainstorming | 业务分析 |
 | product | `opencode/big-pickle` | **user-story**, product-spec-kit, ui-ux-designer, tailwind-design-system, user-journeys, brainstorming | 需求分析 + 用户故事 + 界面设计 |
-| architect | `opencode/big-pickle` | **system-design**, plan-eng-review | 系统设计 + 架构评审 |
-| scout | `opencode/big-pickle` | - | 技术可行性验证 |
-| developer | `opencode/big-pickle` | **api-design**, **event-driven**, test-driven-development | API 设计 + 事件驱动 + TDD |
-| tester | `opencode/big-pickle` | qa | 自动化 QA |
+| architect | `opencode/big-pickle` | OpenSpec, **system-design**, database-design, plan-eng-review | 系统设计 + 架构评审 |
+| scout | `opencode/big-pickle` | OpenSpec验证 | 技术可行性验证 |
+| developer | `opencode/big-pickle` | **api-design**, **event-driven**, test-driven-development, systematic-debugging, unit-test-generator, log-analyzer | API 设计 + 事件驱动 + TDD + 调试 |
+| tester | `opencode/big-pickle` | qa, browse, canary, benchmark | 自动化 QA + 测试 |
 | ops | `opencode/gpt-5-nano` | ship | 部署配置 |
-| evolver | `opencode/gpt-5-nano` | retro | 重构优化 |
+| evolver | `opencode/gpt-5-nano` | retro, tech-debt | 重构优化 + 技术债务 |
 | ghost | `opencode/big-pickle` | cso | 安全审计 |
 | creative | `opencode/big-pickle` | design-review | UI/UX 评审 |
 
@@ -278,16 +278,41 @@ database:
 
 ### 新安装 Skills
 
-| Skill | 来源 | 安装量 | 用途 |
-|-------|------|--------|------|
-| `api-design` | wshobson/agents | 13.2K ⭐ | RESTful API 设计原则 |
-| `event-driven` | 404kidwiz/claude-supercode-skills | 133 | 事件驱动架构模式 |
-| `system-design` | anthropics/knowledge-work-plugins | 676 ⭐ | 系统设计原则 |
-| `user-story` | deanpeters/product-manager-skills | 734 ⭐ | 用户故事拆分 |
-| `product-spec-kit` | diegoeis/product-spec-kit | 66 | 产品规格文档 |
-| `ui-ux-designer` | lotosbin/claude-skills | 1.2K ⭐ | UI/UX 设计 |
-| `tailwind-design-system` | wshobson/agents | 25.7K ⭐ | 设计系统构建 |
-| `user-journeys` | alinaqi/claude-bootstrap | 163 ⭐ | 用户旅程映射 |
+| Skill | 来源 | 安装量 | 用途 | 状态 |
+|-------|------|--------|------|------|
+| `api-design` | wshobson/agents | 13.2K ⭐ | RESTful API 设计原则 | ✅ |
+| `event-driven` | 404kidwiz/claude-supercode-skills | 133 | 事件驱动架构模式 | ✅ |
+| `system-design` | anthropics/knowledge-work-plugins | 676 ⭐ | 系统设计原则 | ✅ |
+| `user-story` | deanpeters/product-manager-skills | 734 ⭐ | 用户故事拆分 | ✅ |
+| `product-spec-kit` | diegoeis/product-spec-kit | 66 | 产品规格文档 | ✅ |
+| `ui-ux-designer` | lotosbin/claude-skills | 1.2K ⭐ | UI/UX 设计 | ✅ |
+| `tailwind-design-system` | wshobson/agents | 25.7K ⭐ | 设计系统构建 | ✅ |
+| `user-journeys` | alinaqi/claude-bootstrap | 163 ⭐ | 用户旅程映射 | ✅ |
+| `tech-debt` | anthropics/knowledge-work-plugins | 501 ⭐ | 技术债务分析 | ✅ |
+| `systematic-debugging` | obra/superpowers | 44.5K ⭐ | 系统调试、根因分析 | ✅ |
+| `unit-test-generator` | patricio0312rev/skills | 76 | 单元测试生成 | ✅ |
+| `log-analyzer` | levnikolaevich/claude-code-skills | 68 | 日志分析 | ✅ |
+| `database-design` | sickn33/antigravity-awesome-skills | 931 ⭐ | 数据库设计 | ✅ (新安装成功) |
+| `architecture-review` | srstomp/pokayokay | 180 | 架构评审 | ✅ (新安装成功) |
+| `refactor` | - | - | 代码重构 | ❌ 需替代 |
+| `bug-hunter` | - | - | Bug 追踪 | ❌ 需替代 |
+| `frontend-builder` | - | - | 前端构建 | ❌ 需替代 |
+
+### 架构师场景化工作流程
+
+| 场景 | Skills 工作流 | 说明 |
+|------|-------------|------|
+| **新系统架构设计** | OpenSpec → system-design → database-design → document | 从零开始设计新系统 |
+| **现有系统架构优化** | explain → tech-debt-analyzer → architecture-review → refactor | 架构优化和重构 |
+| **高并发场景架构改造** | optimize → event-driven → api-design | 高并发优化 |
+
+### 开发者场景化工作流程
+
+| 场景 | Skills 工作流 | 说明 |
+|------|-------------|------|
+| **日常功能开发** | code → refactor → TDD → document | 涉及接口必用 api-design |
+| **复杂 bug 排查** | systematic-debugging → bug-hunter → log-analyzer → code | 系统调试方法 |
+| **技术栈专项开发** | frontend-builder → unit-test-generator → dependency-checker | 接口必用 api-design |
 
 > **模型配置**: 可在 Dashboard 界面中点击角色卡片切换模型，配置保存到 LocalStorage
 
