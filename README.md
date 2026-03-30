@@ -256,15 +256,25 @@ database:
 
 | Agent | 模型 | Skill | 说明 |
 |-------|------|-------|------|
+| gatekeeper | `opencode/big-pickle` | - | 路由决策 |
 | ba | `opencode/big-pickle` | brainstorming | 业务分析 |
 | product | `opencode/big-pickle` | brainstorming | 需求分析 |
-| architect | `opencode/big-pickle` | plan-eng-review | 架构设计评审 |
-| developer | `opencode/big-pickle` | test-driven-development | TDD 开发 |
+| architect | `opencode/big-pickle` | **system-design**, plan-eng-review | 系统设计 + 架构评审 |
+| scout | `opencode/big-pickle` | - | 技术可行性验证 |
+| developer | `opencode/big-pickle` | **api-design**, **event-driven**, test-driven-development | API 设计 + 事件驱动 + TDD |
 | tester | `opencode/big-pickle` | qa | 自动化 QA |
 | ops | `opencode/gpt-5-nano` | ship | 部署配置 |
 | evolver | `opencode/gpt-5-nano` | retro | 重构优化 |
 | ghost | `opencode/big-pickle` | cso | 安全审计 |
 | creative | `opencode/big-pickle` | design-review | UI/UX 评审 |
+
+### 新安装 Skills
+
+| Skill | 来源 | 安装量 | 用途 |
+|-------|------|--------|------|
+| `api-design` | wshobson/agents | 13.2K ⭐ | RESTful API 设计原则 |
+| `event-driven` | 404kidwiz/claude-supercode-skills | 133 | 事件驱动架构模式 |
+| `system-design` | anthropics/knowledge-work-plugins | 676 ⭐ | 系统设计原则 |
 
 > **模型配置**: 可在 Dashboard 界面中点击角色卡片切换模型，配置保存到 LocalStorage
 

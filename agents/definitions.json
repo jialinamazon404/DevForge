@@ -50,6 +50,7 @@
       "icon": "🏗️",
       "goal": "基于 PRD 生成 OpenSpec（系统设计、API 规范、数据模型、技术选型）",
       "tools": ["read", "write", "grep", "glob"],
+      "skills": ["system-design", "plan-eng-review"],
       "input": "PRD 文档",
       "thinking_template": [
         "1. 分析功能范围和技术边界",
@@ -116,6 +117,7 @@
       "icon": "💻",
       "goal": "基于 OpenSpec 实现代码，编写测试，Git 提交",
       "tools": ["read", "write", "edit", "bash", "git"],
+      "skills": ["api-design", "event-driven", "test-driven-development"],
       "input": "OpenSpec 文档 + Scout 报告",
       "thinking_template": [
         "1. 理解要实现的功能范围",
