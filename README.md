@@ -258,7 +258,7 @@ database:
 |-------|------|-------|------|
 | gatekeeper | `opencode/big-pickle` | - | 路由决策 |
 | ba | `opencode/big-pickle` | brainstorming | 业务分析 |
-| product | `opencode/big-pickle` | brainstorming | 需求分析 |
+| product | `opencode/big-pickle` | **user-story**, product-spec-kit, ui-ux-designer, tailwind-design-system, user-journeys, brainstorming | 需求分析 + 用户故事 + 界面设计 |
 | architect | `opencode/big-pickle` | **system-design**, plan-eng-review | 系统设计 + 架构评审 |
 | scout | `opencode/big-pickle` | - | 技术可行性验证 |
 | developer | `opencode/big-pickle` | **api-design**, **event-driven**, test-driven-development | API 设计 + 事件驱动 + TDD |
@@ -268,6 +268,14 @@ database:
 | ghost | `opencode/big-pickle` | cso | 安全审计 |
 | creative | `opencode/big-pickle` | design-review | UI/UX 评审 |
 
+### Product 场景与 Skills
+
+| 场景 | Skills 组合 | 输出 |
+|------|-------------|------|
+| 新产品立项 | user-story → product-spec-kit → brainstorming | PRD + 产品规格 + 用户故事 |
+| 原型与设计落地 | ui-ux-designer → tailwind-design-system | 界面布局建议 + 设计系统 |
+| 体验优化 | user-journeys → brainstorming | 交互流程草图 + 改进建议 |
+
 ### 新安装 Skills
 
 | Skill | 来源 | 安装量 | 用途 |
@@ -275,6 +283,11 @@ database:
 | `api-design` | wshobson/agents | 13.2K ⭐ | RESTful API 设计原则 |
 | `event-driven` | 404kidwiz/claude-supercode-skills | 133 | 事件驱动架构模式 |
 | `system-design` | anthropics/knowledge-work-plugins | 676 ⭐ | 系统设计原则 |
+| `user-story` | deanpeters/product-manager-skills | 734 ⭐ | 用户故事拆分 |
+| `product-spec-kit` | diegoeis/product-spec-kit | 66 | 产品规格文档 |
+| `ui-ux-designer` | lotosbin/claude-skills | 1.2K ⭐ | UI/UX 设计 |
+| `tailwind-design-system` | wshobson/agents | 25.7K ⭐ | 设计系统构建 |
+| `user-journeys` | alinaqi/claude-bootstrap | 163 ⭐ | 用户旅程映射 |
 
 > **模型配置**: 可在 Dashboard 界面中点击角色卡片切换模型，配置保存到 LocalStorage
 

@@ -20,14 +20,22 @@
       "name": "产品经理",
       "name_en": "Product Manager",
       "icon": "📋",
-      "goal": "理解用户需求，生成 PRD（用户故事、功能清单、验收标准）",
-      "tools": ["read", "write"],
-      "input": "原始用户需求",
+      "goal": "理解用户需求，生成 PRD、产品规格、界面布局、交互流程、用户故事",
+      "tools": ["read", "write", "glob", "grep"],
+      "skills": ["user-story", "product-spec-kit", "ui-ux-designer", "tailwind-design-system", "user-journeys", "brainstorming"],
+      "scenarios": {
+        "新产品立项": ["user-story", "product-spec-kit", "brainstorming"],
+        "原型与设计落地": ["ui-ux-designer", "tailwind-design-system"],
+        "体验优化": ["user-journeys", "brainstorming"]
+      },
+      "input": "原始用户需求 + 场景类型",
       "thinking_template": [
         "1. 理解用户想要解决什么问题",
         "2. 识别核心用户和场景",
         "3. 拆解功能需求",
-        "4. 定义验收标准"
+        "4. 定义验收标准",
+        "5. 设计界面布局",
+        "6. 绘制交互流程"
       ],
       "output": {
         "prd": {
@@ -37,11 +45,31 @@
           "features": [{"id": "F-001", "name": "功能名", "priority": "HIGH|MEDIUM|LOW", "description": "..."}],
           "constraints": ["约束条件"]
         },
+        "productSpec": {
+          "overview": "产品概述",
+          "goals": ["产品目标"],
+          "userPersonas": ["用户画像"],
+          "competitors": ["竞品分析"]
+        },
+        "uiLayout": {
+          "screens": ["页面列表"],
+          "navigation": "导航结构",
+          "layoutSuggestions": ["布局建议"]
+        },
+        "userJourney": {
+          "flows": ["交互流程"],
+          "painPoints": ["痛点"],
+          "improvements": ["改进建议"]
+        },
         "markdown": "# PRD 文档内容"
       },
       "output_files": {
         "thinking": "thinking/01-product.json",
-        "output": "output/prd.md"
+        "output": "output/prd.md",
+        "productSpec": "output/product-spec.md",
+        "uiLayout": "output/ui-layout.md",
+        "userJourney": "output/user-journey.md",
+        "userStories": "output/user-stories.md"
       }
     },
     "architect": {
