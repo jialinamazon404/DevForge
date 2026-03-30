@@ -88,7 +88,27 @@
       "icon": "🏗️",
       "goal": "基于 PRD 生成 OpenSpec（系统设计、API 规范、数据模型、技术选型）",
       "tools": ["read", "write", "grep", "glob"],
-      "skills": ["system-design", "plan-eng-review"],
+      "skills": ["OpenSpec", "system-design", "database-design", "plan-eng-review"],
+      "scenarios": {
+        "新系统架构设计": {
+          "description": "从零开始设计新系统架构",
+          "skills": ["OpenSpec", "system-design", "database-design", "document"],
+          "workflow": ["principal-architect", "system-design", "database-design", "document"],
+          "output": "完整的系统架构设计文档"
+        },
+        "现有系统架构优化": {
+          "description": "对现有系统进行架构优化和重构",
+          "skills": ["explain", "tech-debt-analyzer", "architecture-review", "refactor"],
+          "workflow": ["explain", "tech-debt-analyzer", "architecture-review", "refactor"],
+          "output": "架构优化方案和技术债务报告"
+        },
+        "高并发场景架构改造": {
+          "description": "针对高并发场景的架构优化",
+          "skills": ["optimize", "event-driven", "api-design"],
+          "workflow": ["optimize", "event-driven", "api-design"],
+          "output": "高并发架构改造方案"
+        }
+      },
       "input": "PRD 文档",
       "thinking_template": [
         "1. 分析功能范围和技术边界",

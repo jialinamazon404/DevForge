@@ -113,7 +113,34 @@
               </ul>
             </div>
           </div>
-          <div v-if="selectedAgent.id !== 'gatekeeper'" class="border-t border-gray-700 pt-4">
+
+          <!-- 架构师：显示场景化 Skills -->
+          <div v-else-if="selectedAgent.id === 'architect' && selectedAgent.scenarios" class="border-t border-gray-700 pt-4">
+            <h3 class="text-gray-400 text-sm mb-2">应用场景与 Skills</h3>
+            <div class="space-y-3">
+              <div 
+                v-for="scenario in selectedAgent.scenarios" 
+                :key="scenario.id"
+                class="bg-gradient-to-r from-primary-500/10 to-secondary-500/10 rounded-lg p-3 border border-primary-500/20"
+              >
+                <div class="text-white font-medium mb-2">{{ scenario.name }}</div>
+                <div class="flex flex-wrap gap-1.5">
+                  <span 
+                    v-for="skill in scenario.skills" 
+                    :key="skill.name"
+                    class="px-2 py-0.5 bg-primary-500/20 rounded text-xs text-primary-300"
+                  >
+                    {{ skill.name }}
+                  </span>
+                </div>
+                <div class="mt-2 text-gray-400 text-xs">
+                  工作流: {{ scenario.skills.map(s => s.name).join(' → ') }}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-if="selectedAgent.id !== 'gatekeeper' && selectedAgent.id !== 'architect'" class="border-t border-gray-700 pt-4">
             <h3 class="text-gray-400 text-sm mb-2">AI 模型</h3>
             <div class="flex items-center space-x-3">
               <select
@@ -292,10 +319,36 @@ const agents = [
     triggers: ['产品完成后'],
     tools: ['文件写入', '代码搜索', 'OpenSpec生成'],
     route: ['architect'],
-    skills: [
-      { name: 'OpenSpec', description: '生成架构设计文档（组件划分、API设计、数据模型、技术选型）' },
-      { name: 'system-design', description: '系统架构设计原则、组件划分' },
-      { name: 'plan-eng-review', description: '架构评审、技术选型决策' }
+    scenarios: [
+      {
+        id: 'new-system',
+        name: '新系统架构设计',
+        skills: [
+          { name: 'OpenSpec', description: '生成架构设计文档' },
+          { name: 'system-design', description: '系统架构设计原则、组件划分' },
+          { name: 'database-design', description: '数据库设计、数据模型构建' },
+          { name: 'document', description: '架构文档编写与规范' }
+        ]
+      },
+      {
+        id: 'optimize',
+        name: '现有系统架构优化',
+        skills: [
+          { name: 'explain', description: '现有系统分析理解' },
+          { name: 'tech-debt-analyzer', description: '技术债务识别与分析' },
+          { name: 'architecture-review', description: '架构评审、问题诊断' },
+          { name: 'refactor', description: '重构方案设计' }
+        ]
+      },
+      {
+        id: 'high-concurrency',
+        name: '高并发场景架构改造',
+        skills: [
+          { name: 'optimize', description: '性能优化分析' },
+          { name: 'event-driven', description: '事件驱动架构设计' },
+          { name: 'api-design', description: '高并发 API 设计原则' }
+        ]
+      }
     ]
   },
   {
