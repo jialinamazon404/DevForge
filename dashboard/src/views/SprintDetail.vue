@@ -1070,8 +1070,9 @@ const outputFilesConfig = {
   ],
   architect: [
     { name: '系统架构', icon: '🏗️', path: 'architect/architecture.md', source: 'sprint' },
-    { name: 'API 设计', icon: '📡', path: 'output/architect-step2.md', source: 'sprint' },
-    { name: '数据库设计', icon: '🗄️', path: 'output/architect-step3.md', source: 'sprint' },
+    { name: 'API 设计', icon: '📡', path: 'architect/api-design.md', source: 'sprint' },
+    { name: '数据库设计', icon: '🗄️', path: 'architect/database.md', source: 'sprint' },
+    { name: '业务流转图', icon: '🔀', path: 'architect/data-flow.md', source: 'sprint' },
     { name: 'OpenSpec Changes', icon: '📋', path: 'openspec/changes/', source: 'project', category: 'dir' }
   ],
   tech_coach: [
@@ -1080,10 +1081,11 @@ const outputFilesConfig = {
     { name: '技术可行性', icon: '🔍', path: 'output/tech-feasibility.md', source: 'sprint' }
   ],
   developer: [
-    { name: 'README', icon: '📖', path: 'src/README.md', source: 'project' },
-    { name: 'API 文档', icon: '📚', path: 'src/API.md', source: 'project' },
-    { name: '前端代码', icon: '💻', path: 'src/frontend/', source: 'project', category: 'dir' },
-    { name: '后端代码', icon: '⚙️', path: 'src/backend/', source: 'project', category: 'dir' }
+    { name: 'README', icon: '📖', path: 'developer/README.md', source: 'sprint' },
+    { name: 'API 文档', icon: '📚', path: 'developer/API.md', source: 'sprint' },
+    { name: '开发摘要', icon: '📋', path: 'developer/dev-summary.md', source: 'sprint' },
+    { name: '前端代码', icon: '💻', path: 'developer/frontend/', source: 'sprint', category: 'dir' },
+    { name: '后端代码', icon: '⚙️', path: 'developer/backend/', source: 'sprint', category: 'dir' }
   ],
   tester: [
     { name: '测试用例', icon: '📝', path: 'tester/test-cases.md', source: 'sprint' },
@@ -1134,7 +1136,9 @@ const currentOutputFiles = computed(() => {
   
   // 正常状态：根据实际存在返回
   return outputFilesConfig[role].map(f => {
-    const exists = existingFiles.value.some(ef => ef.path === f.path)
+    const exists = f.category === 'dir'
+      ? existingFiles.value.some(ef => ef.path.startsWith(f.path))
+      : existingFiles.value.some(ef => ef.path === f.path)
     return {
       ...f,
       exists,

@@ -266,7 +266,7 @@ projects/{projectId}/              # 项目根目录（持续演进）
 | 路由 | 执行顺序 | 适用场景 |
 |------|----------|----------|
 | `CRITICAL` | product → architect → creative → developer → tester → evolver | 核心/高风险功能 |
-| `BUILD` | product → architect → tech_coach → developer → tester → ops → evolver | 从零构建新功能 |
+| `BUILD` | product → tech_coach → architect → developer → tester → ops → evolver | 从零构建新功能 |
 | `REVIEW` | creative → ghost → tester | 代码/设计审查 |
 | `QUERY` | tech_coach | 技术可行性调研 |
 | `SECURITY` | ghost → architect | 安全检查 |

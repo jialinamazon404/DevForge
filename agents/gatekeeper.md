@@ -20,8 +20,8 @@ tools: [state_read, state_write, decision_logic]
 
 ```
 请求类型 → 路由路径
-├── CRITICAL → [architect, creative, developer, tester, evolver]
-├── BUILD    → [architect, tech_coach, developer, tester, ops, evolver]
+├── CRITICAL → [product, architect, creative, developer, tester, evolver]
+├── BUILD    → [product, tech_coach, architect, developer, tester, ops, evolver]
 ├── REVIEW   → [creative, ghost, tester]
 ├── QUERY    → [tech_coach, receptionist_response]
 └── SECURITY → [ghost, architect]
@@ -64,8 +64,8 @@ tools: [state_read, state_write, decision_logic]
 ```javascript
 function route(category) {
   const routes = {
-    CRITICAL: ['architect', 'creative', 'developer', 'tester', 'evolver'],
-    BUILD: ['architect', 'tech_coach', 'developer', 'tester', 'ops', 'evolver'],
+    CRITICAL: ['product', 'architect', 'creative', 'developer', 'tester', 'evolver'],
+    BUILD: ['product', 'tech_coach', 'architect', 'developer', 'tester', 'ops', 'evolver'],
     REVIEW: ['creative', 'ghost', 'tester'],
     QUERY: ['tech_coach'],
     SECURITY: ['ghost', 'architect']

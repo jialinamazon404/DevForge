@@ -133,18 +133,20 @@ const ROLE_STEP_SKILLS = {
     null                      // 步骤 5/5: 汇总生成PRD（不需要 skill）
   ],
   architect: [
-    'system-design',          // 步骤 1/4: 系统架构设计 (1.3KB)
-    'api-design',             // 步骤 2/4: API 接口设计 (13KB)
-    'database-design',        // 步骤 3/4: 数据库模型设计 (1.6KB)
-    null                      // 步骤 4/4: OpenSpec CLI 生成 change proposal（不需要 skill 注入）
+    'system-design',          // 步骤 1/5: 系统设计 (1.3KB)
+    'api-design',             // 步骤 2/5: API 接口设计 (13KB)
+    'database-design',        // 步骤 3/5: 数据库模型设计 (1.6KB)
+    null,                     // 步骤 4/5: 业务数据流转图
+    null                      // 步骤 5/5: OpenSpec CLI 生成 change proposal
   ],
   developer: [
-    null,                     // 步骤 1/6: 项目结构搭建
-    null,                     // 步骤 2/6: 后端基础配置
-    'api-design',             // 步骤 3/6: 后端 API 实现 (13KB)
-    null,                     // 步骤 4/6: 前端基础配置
-    null,                     // 步骤 5/6: 前端页面实现
-    'test-driven-development' // 步骤 6/6: 生成开发文档+测试 (9.8KB)
+    null,                     // 步骤 1: 读取 OpenSpec change + 现有代码 → 确认范围
+    null,                     // 步骤 2: 按 tasks.md 执行（第1批: 1-20）
+    null,                     // 步骤 3: 按 tasks.md 执行（第3批: 21-30）
+    null,                     // 步骤 4: 按 tasks.md 执行（第4批: 31-40）
+    null,                     // 步骤 5: 按 tasks.md 执行（第5批: 41-50）
+    null,                     // 步骤 6: 按 tasks.md 执行（第6批: 剩余任务）
+    'test-driven-development' // 步骤 7: 生成开发文档+测试 (9.8KB)
   ],
   tester: [
     null,                     // 步骤 1/4: 功能测试用例设计
@@ -159,7 +161,8 @@ const ROLE_STEP_SKILLS = {
     'docker-helper'           // 步骤 4/4: 部署脚本 (1KB)
   ],
   tech_coach: [
-    null                      // 单步：整合产品+架构产出，输出技术实现文档
+    null,                     // 步骤 1/2: 信息收集 — 读取产品所有输出
+    null                      // 步骤 2/2: 技术实现 — 基于 product/ 输出技术实现文档
   ]
 };
 
@@ -247,11 +250,77 @@ async function saveThinking(pipelineId, role, thinking) {
 }
 
 /**
- * 获取阶段索引
+ * 作用：Tech Coach 2步工作流
+  * 步骤1: 读取 product/ 下所有文件
+  * 步骤2: 基于 product/ 输出技术实现文档
  */
-function getStageIndex(role) {
-  const order = ['ba', 'product', 'architect', 'developer', 'tester', 'ops', 'evolver', 'ghost', 'creative'];
-  return order.indexOf(role);
+function generateTechCoachPrompt(context) {
+  const { pipelineId, rawInput, workspacePath, prdOutput, stepIndex } = context;
+  
+  // product/ 目录下的文件列表
+  const productFiles = [
+    'product/prd.md',
+    'product/user-stories.md',
+    'product/functional-requirements.md',
+    'product/user-journey.md',
+    'product/ui-layout.md',
+    'product/user-personas.md'
+  ];
+  const wsPath = workspacePath || `workspace/${pipelineId}`;
+  
+  if (stepIndex === 0) {
+    // 步骤 1: 读取 product/ 文件
+    return `# 角色：开发教练 (Tech Coach) - 步骤 1/2
+
+## 原始需求
+${rawInput}
+
+## 你的任务
+读取 product/ 目录下所有产品输出文件，为下一步生成技术实现文档做准备。
+
+### 读取文件
+请读取以下文件：
+${productFiles.map(f => `- \`${wsPath}/${f}\``).join('\n')}
+
+### ⚠️ 重要
+- 本步骤只需要读取文件，不需要生成任何输出
+- 将读取的内容（特别是 prd.md）作为下一步的输入
+
+## 输出
+无需生成文件，只需读取并理解产品需求
+`;
+  } else {
+    // 步骤 2: 技术实现
+    return `# 角色：开发教练 (Tech Coach) - 步骤 2/2
+
+## 原始需求
+${rawInput}
+
+## 你的任务
+基于 product/ 目录下的产品文档，生成技术实现文档。
+
+### 读取文件
+请先读取：
+- \`${wsPath}/product/prd.md\` - PRD 文档
+- \`${wsPath}/product/user-stories.md\` - 用户故事
+- \`${wsPath}/product/functional-requirements.md\` - 功能需求
+- \`${wsPath}/product/ui-layout.md\` - 界面布局
+- \`${wsPath}/product/user-journey.md\` - 用户旅程
+
+### 生成技术实现文档
+输出以下文件：
+
+1. \`${wsPath}/tech-coach/tech-implementation.md\` - 技术实现文档（前后端分离）
+   - 前端：组件结构、页面路由、状态管理、API调用封装
+   - 后端：API清单、数据库实现、业务逻辑、认证权限
+
+2. \`${wsPath}/output/user-stories.md\` - 开发用用户故事
+
+3. \`${wsPath}/output/tech-feasibility.md\` - 技术可行性分析
+   - 风险点识别
+   - 实现难点评估
+`;
+  }
 }
 
 /**
@@ -434,12 +503,16 @@ async function runOpenCode(prompt, options = {}) {
     fs.writeFile(tmpFile, finalPrompt, 'utf-8').then(() => {
       // Tester 角色需要 gstack 插件，不使用 --pure
       const pureFlag = usePure ? '--pure' : '';
-      const cmd = `opencode run --format json ${pureFlag} --model "${model}" --dir "${ROOT}"`;
       
       console.log(`   🚀 启动 OpenCode: ${model}`);
       sendProgress(`正在调用 AI 模型: ${model}...`);
       
-      const proc = spawn('bash', ['-c', `${cmd} < "${tmpFile}"`], {
+      // 直接启动 opencode 进程，不通过 bash 包装
+      const args = ['run', '--format', 'json'];
+      if (usePure) args.push('--pure');
+      args.push('--model', model, '--dir', ROOT);
+      
+      const proc = spawn('opencode', args, {
         stdio: ['pipe', 'pipe', 'pipe'],
         env: { ...process.env },
         cwd: ROOT
@@ -454,6 +527,10 @@ async function runOpenCode(prompt, options = {}) {
           await fs.unlink(tmpFile);
         } catch (e) {}
       };
+      
+      // 写入 prompt 到 stdin
+      proc.stdin.write(finalPrompt);
+      proc.stdin.end();
       
       proc.stdout.on('data', d => {
         stdout += d.toString();
@@ -514,17 +591,25 @@ async function runOpenCode(prompt, options = {}) {
  */
 function parseOpenCodeOutput(rawOutput) {
   const lines = rawOutput.split('\n').filter(l => l.trim());
+  const events = [];
   const texts = [];
   
   for (const line of lines) {
     try {
       const event = JSON.parse(line);
+      events.push(event);
       
-      // 只提取纯文本响应，跳过 OpenCode 内部事件结构
-      if (event.type === 'text' && event.part?.text) {
-        texts.push(event.part.text);
+      // 提取文本内容 - 从多种可能的字段位置获取
+      let content = null;
+      if (event.part?.text) content = event.part.text;
+      else if (event.part?.content) content = event.part.content;
+      else if (event.message?.content) content = event.message.content;
+      else if (event.content) content = event.content;
+      else if (event.text) content = event.text;
+      
+      if (content) {
+        texts.push(typeof content === 'string' ? content : JSON.stringify(content));
       }
-      // 跳过 tool_use, step_start, step_finish 等事件
     } catch (e) {
       // 非 JSON 行当作文本处理
       if (line.trim()) {
@@ -534,6 +619,7 @@ function parseOpenCodeOutput(rawOutput) {
   }
   
   return {
+    events,
     text: texts.join('\n\n')
   };
 }
@@ -738,12 +824,13 @@ function getStepGuidance(role, stepIndex) {
       '## 步骤 4/4: OpenSpec Change Proposal\n使用 OpenSpec CLI 创建规范的 change proposal。执行: openspec init --tools opencode, openspec new change "<name>", openspec instructions, openspec validate'
     ],
     developer: [
-      '## 步骤 1/6: 项目结构搭建\n根据技术文档创建项目目录结构、初始化 Git。输出到 developer/',
-      '## 步骤 2/6: 后端基础配置\n创建后端 package.json、安装依赖、配置数据库和中间件。输出到 developer/backend/',
-      '## 步骤 3/6: 后端 API 实现\n根据技术文档 API 清单实现所有后端接口。输出到 developer/backend/',
-      '## 步骤 4/6: 前端基础配置\n创建前端项目、安装依赖、配置路由和状态管理。输出到 developer/frontend/',
-      '## 步骤 5/6: 前端页面实现\n根据产品界面布局实现所有前端页面。输出到 developer/frontend/',
-      '## 步骤 6/6: 生成开发文档\n生成 README.md、API.md、项目说明。输出到 developer/README.md, developer/API.md, developer/dev-summary.md'
+      '## 步骤 1/7: 范围确认\n读取 OpenSpec change (proposal.md, design.md, tasks.md) + 现有代码，确认实现范围和任务列表',
+      '## 步骤 2/7: 按 tasks.md 执行（第1批: 前10个任务）\n读取 tasks.md，确认总任务数，执行任务 1-10。每完成一个输出进度。',
+      '## 步骤 3/7: 按 tasks.md 执行（第2批: 任务 11-20）\n继续执行任务 11-20。每完成一个输出进度。',
+      '## 步骤 4/7: 按 tasks.md 执行（第3批: 任务 21-30）\n继续执行任务 21-30。每完成一个输出进度。',
+      '## 步骤 5/7: 按 tasks.md 执行（第4批: 任务 31-40）\n继续执行任务 31-40。每完成一个输出进度。',
+      '## 步骤 6/7: 按 tasks.md 执行（第5批: 任务 41-50）\n继续执行任务 41-50。每完成一个输出进度。',
+      '## 步骤 7/7: 开发文档\n生成 README.md、API.md、dev-summary.md。输出到 developer/'
     ],
     tester: [
       '## 步骤 1/4: 功能测试用例设计\n基于 PRD 和 OpenSpec 设计功能测试用例。输出到 tester/test-cases.md',
@@ -752,7 +839,8 @@ function getStepGuidance(role, stepIndex) {
       '## 步骤 4/4: 生成测试报告\n汇总所有测试结果，生成最终测试报告。输出到 tester/test-report.md, tester/security-report.md'
     ],
     tech_coach: [
-      '## 技术实现文档生成\n整合产品和架构产出，输出前后端技术实现文档。输出到 tech-coach/tech-implementation.md, output/user-stories.md, output/tech-feasibility.md'
+      '## 步骤 1/2: 信息收集\n读取 product/ 下所有文件（prd.md, user-stories.md, functional-requirements.md, user-journey.md, ui-layout.md, user-personas.md），为下一步生成技术实现文档做准备',
+      '## 步骤 2/2: 技术实现\n基于 product/ 下产品文档输出技术实现文档、用户故事、可行性分析。输出到 tech-coach/tech-implementation.md, output/user-stories.md, output/tech-feasibility.md'
     ]
   };
   
@@ -765,9 +853,9 @@ function getStepGuidance(role, stepIndex) {
 async function generateArchitectPrompt(context) {
   const { pipelineId, rawInput, workspacePath, prd, stepIndex, projectPath } = context;
   
-  // 步骤 4 需要读取前三步的产出文件
-  let step1Output = '', step2Output = '', step3Output = '';
-  if (stepIndex === 3) {
+  // 步骤 5 需要读取前 4 步的产出文件
+  let step1Output = '', step2Output = '', step3Output = '', step4Output = '';
+  if (stepIndex === 4) {
     try {
       step1Output = await fs.readFile(path.join(workspacePath, 'output/architect-step1.md'), 'utf-8');
     } catch (e) { step1Output = '未找到（步骤 1 可能未执行或未保存）'; }
@@ -779,7 +867,7 @@ async function generateArchitectPrompt(context) {
     } catch (e) { step3Output = '未找到（步骤 3 可能未执行或未保存）'; }
   }
   
-  const previousStepsContext = stepIndex === 3 ? `
+  const previousStepsContext = stepIndex === 4 ? `
 ## 前三步架构设计产出（必须读取并整合到 OpenSpec artifacts 中）
 
 ### 步骤 1：系统架构设计
@@ -803,7 +891,7 @@ ${step3Output}
 - 不要凭空编造，要忠实反映前三步的实际设计决策
 ` : '';
   
-  const openSpecInit = stepIndex === 3 ? `
+  const openSpecInit = stepIndex === 4 ? `
 ### 1. 初始化 OpenSpec 环境（如果项目还没有 OpenSpec）
 切换到项目目录: \`cd ${projectPath || `projects/${pipelineId}`}\`
 检查是否存在 \`openspec/spec.json\` 或 \`openspec/\` 目录：
@@ -811,7 +899,7 @@ ${step3Output}
 - 如果已存在: 跳过此步骤
 ` : '';
 
-  const openSpecCreate = stepIndex === 3 ? `
+  const openSpecCreate = stepIndex === 4 ? `
 ### 2. 创建 change proposal
 切换到项目目录: \`cd ${projectPath || `projects/${pipelineId}`}\`
 基于 PRD 和前 3 步的架构设计，创建 change：
@@ -822,7 +910,7 @@ feature-name 格式: \`sprint-N-short-desc\`（如 "sprint-1-user-auth", "sprint
 description 简要描述本次迭代内容。
 ` : '';
 
-  const openSpecStatus = stepIndex === 3 ? `
+  const openSpecStatus = stepIndex === 4 ? `
 ### 3. 获取 artifact 构建顺序
 \`\`\`bash
 openspec status --change "<feature-name>" --json
@@ -830,7 +918,7 @@ openspec status --change "<feature-name>" --json
 从 JSON 中获取 applyRequires（需要哪些 artifacts 才能开始实现）。
 ` : '';
 
-  const openSpecArtifacts = stepIndex === 3 ? `
+  const openSpecArtifacts = stepIndex === 4 ? `
 ### 4. 按依赖顺序创建 artifacts
 对每个 artifact：
 \`\`\`bash
@@ -842,7 +930,7 @@ openspec instructions <artifact-id> --change "<feature-name>" --json
 - **tasks.md** — 实现任务清单（基于 design.md，细化为可执行的开发任务，供开发者按顺序执行）
 ` : '';
 
-  const openSpecValidate = stepIndex === 3 ? `
+  const openSpecValidate = stepIndex === 4 ? `
 ### 5. 验证 change proposal
 \`\`\`bash
 openspec validate "<feature-name>"
@@ -851,14 +939,14 @@ openspec status --change "<feature-name>"
 确保所有 applyRequires artifacts 状态为 done。
 ` : '';
 
-  const openSpecOutput = stepIndex === 3 ? `
+  const openSpecOutput = stepIndex === 4 ? `
 ## 输出要求
 - OpenSpec change 目录: \`${projectPath || `projects/${pipelineId}`}/openspec/changes/<feature-name>/\`
 - 包含 proposal.md, design.md, tasks.md 等标准 artifacts
 - 确保 \`openspec status\` 显示所有 applyRequires artifacts 为 done 状态
 ` : '';
 
-  const openSpecFallback = stepIndex === 3 ? `
+  const openSpecFallback = stepIndex === 4 ? `
 - 如果 openspec CLI 不可用，降级为手动创建目录结构:
   \`\`\`
   ${projectPath || `projects/${pipelineId}`}/openspec/changes/<feature-name>/
@@ -869,16 +957,20 @@ openspec status --change "<feature-name>"
 ` : '';
   
   const stepPrompts = [
-    `# 角色：架构师 - 步骤 1/4：系统架构设计
+    `# 角色：架构师 - 步骤 1/5：系统设计
 
-## 用户原始需求
+## 原始需求
 ${rawInput}
 
 ## 工作目录
 ${workspacePath || `workspace/${pipelineId}`}
 
 ## 你的任务
-设计系统架构，包含组件划分和技术栈选型。
+基于 tech-implementation.md 设计系统架构。
+
+## 输入
+请先读取：
+- \`${workspacePath || `workspace/${pipelineId}`}/tech-coach/tech-implementation.md\` - 技术实现文档
 
 ## 输出要求
 1. 系统架构图（使用 Mermaid）
@@ -886,50 +978,77 @@ ${workspacePath || `workspace/${pipelineId}`}
 3. 组件列表和职责
 4. 数据流设计
 
-保存到: \`${workspacePath || `workspace/${pipelineId}`}/output/architect-step1.md\`
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/architect/architecture.md\`
 `,
-    `# 角色：架构师 - 步骤 2/4：API 接口设计
+    `# 角色：架构师 - 步骤 2/5：API 设计
 
-## 用户原始需求
+## 原始需求
 ${rawInput}
 
 ## 工作目录
 ${workspacePath || `workspace/${pipelineId}`}
 
 ## 你的任务
-基于架构设计，设计 RESTful API 接口规范。
+基于 tech-implementation.md + 系统设计，设计 RESTful API 接口规范。
 
-## 输出要求
-1. API 端点列表（方法、路径、描述）
-2. 请求参数和响应格式
-3. 错误码定义
-
-保存到: \`${workspacePath || `workspace/${pipelineId}`}/output/architect-step2.md\`
+## 输入
+请先读取：
+- \`${workspacePath || `workspace/${pipelineId}`}/tech-coach/tech-implementation.md\` - 技术实现文档
+- \`${workspacePath || `workspace/${pipelineId}`}/architect/architecture.md\` - 系统架构
 `,
-    `# 角色：架构师 - 步骤 3/4：数据库模型设计
+    `# 角色：架构师 - 步骤 3/5：表设计
 
-## 用户原始需求
+## 原始需求
 ${rawInput}
 
 ## 工作目录
 ${workspacePath || `workspace/${pipelineId}`}
 
 ## 你的任务
-设计数据库表结构和关系。
+基于 tech-implementation.md + 系统设计，设计数据库表结构。
+
+## 输入
+请先读取：
+- \`${workspacePath || `workspace/${pipelineId}`}/tech-coach/tech-implementation.md\`
+- \`${workspacePath || `workspace/${pipelineId}`}/architect/architecture.md\`
 
 ## 输出要求
 1. 实体定义
 2. 字段类型和约束
 3. 表关系（1:1, 1:N, N:M）
 
-保存到: \`${workspacePath || `workspace/${pipelineId}`}/output/architect-step3.md\`
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/architect/database.md\`
 `,
-    `# 角色：架构师 - 步骤 4/4：OpenSpec Change Proposal
+    `# 角色：架构师 - 步骤 4/5：业务数据流转图
+
+## 原始需求
+${rawInput}
+
+## 工作目录
+${workspacePath || `workspace/${pipelineId}`}
+
+## 你的任务
+基于步骤 1-3 的产出，绘制 Mermaid 业务数据流转图。
+
+## 输入
+请先读取：
+- \`${workspacePath || `workspace/${pipelineId}`}/architect/architecture.md\`
+- \`${workspacePath || `workspace/${pipelineId}`}/architect/api-design.md\`
+- \`${workspacePath || `workspace/${pipelineId}`}/architect/database.md\`
+
+## 输出要求
+Mermaid 流程图展示：
+- 业务数据流向
+- 模块交互关系
+
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/architect/data-flow.md\`
+`,
+    `# 角色：架构师 - 步骤 5/5：OpenSpec Change Proposal
 
 ## 用户原始需求
 ${rawInput}
 
-## PRD 文档
+## 整合需求文档
 ${prd || '无'}
 ${previousStepsContext}
 
@@ -937,7 +1056,7 @@ ${previousStepsContext}
 ${workspacePath || `workspace/${pipelineId}`}
 
 ## 你的任务
-使用 OpenSpec CLI 工具创建规范的 change proposal，作为下游开发教练和开发者的标准依据。
+使用 OpenSpec CLI 工具创建规范的 change proposal。
 
 ## 执行步骤
 ${openSpecInit}
@@ -948,10 +1067,9 @@ ${openSpecValidate}
 ${openSpecOutput}
 
 ## 注意
-- 技术选型已在前面的步骤中确定，直接使用
-- proposal.md 的需求来源: PRD 文档
-- design.md 的技术设计来源: 前三步架构设计产出（见上方）
-- tasks.md 的任务拆解: 基于 design.md，细化为可执行的开发任务${openSpecFallback}
+- proposal.md 的需求来源: tech-implementation.md + product/prd.md
+- design.md 的技术设计来源: 步骤 1-4 产出
+- tasks.md 的任务拆解: 基于 design.md${openSpecFallback}
 `
   ];
 
@@ -962,76 +1080,6 @@ ${openSpecOutput}
   
   // 默认返回完整 prompt（第4步）
   return stepPrompts[3];
-}
-
-/**
- * 生成 Scout Agent 的提示词
- */
-/**
- * 生成 Tech Coach Agent 的提示词
- * 作用：整合产品和架构的产出，输出技术实现文档（分前后端），减少开发者思考负担
- */
-function generateTechCoachPrompt(context) {
-  const { pipelineId, rawInput, workspacePath, prdOutput, openspec, openspecChangeDir } = context;
-  
-  const prdContext = prdOutput ? `\n## 产品产出（PRD）\n${prdOutput.slice(0, 3000)}` : '';
-  const specContext = openspec ? `\n## 架构产出（OpenSpec）\n${openspec.slice(0, 3000)}` : '';
-  const openspecChangeContext = openspecChangeDir ? `\n## OpenSpec Change Proposal\nChange 目录: ${openspecChangeDir}\n请读取以下文件作为技术实现的权威依据:\n- proposal.md（需求定义）\n- design.md（技术设计）\n- tasks.md（任务清单）` : '';
-  
-  return `# 角色：开发教练 (Tech Coach)
-
-## 原始需求
-${rawInput}
-${prdContext}
-${specContext}
-${openspecChangeContext}
-
-## 工作目录
-${workspacePath || `workspace/${pipelineId}`}
-
-## 你的任务
-你是产品和架构之间的桥梁。你的目标是将产品的"用户语言"和架构的"架构语言"翻译成开发者的"代码语言"，让开发者拿到的是"可直接开工"的完整规格。
-
-### 1. 整合产品产出
-- 从 PRD 中提取功能需求
-- 从功能清单中映射到技术实现
-- 从界面布局中关联前端组件设计
-- 从用户故事中转化为开发任务
-
-### 2. 整合架构产出
-- 从 OpenSpec Change Proposal 中确认技术选型和设计决策
-- 从 API 接口设计中补充遗漏接口
-- 从数据库模型中补充表设计建议
-
-### 3. 输出技术实现文档
-生成前后端分离的技术实现文档，包含：
-
-#### 前端实现
-- 组件结构（对应产品界面布局）
-- 页面路由规划
-- 状态管理方案
-- API 调用封装
-
-#### 后端实现
-- API 实现清单（对应架构 API 设计 + 补充）
-- 数据库实现（对应架构数据模型 + 补充）
-- 业务逻辑说明
-- 认证/权限设计
-
-#### 技术可行性分析
-- 风险点识别
-- 实现难点评估
-
-#### 开发任务拆解
-- 对应产品用户故事 → 开发任务
-- 优先级排序
-
-## 输出要求
-生成以下文件（必须完整）：
-- \`${workspacePath || `workspace/${pipelineId}`}/tech-coach/tech-implementation.md\` - 技术实现文档（前后端分离）
-- \`${workspacePath || `workspace/${pipelineId}`}/output/user-stories.md\` - 开发用用户故事
-- \`${workspacePath || `workspace/${pipelineId}`}/output/tech-feasibility.md\` - 技术可行性分析
-`;
 }
 
 /**
@@ -1066,9 +1114,10 @@ ${typeof techCoachOutput === 'string' ? techCoachOutput.slice(0, 5000) : JSON.st
   }
   
   const projectDir = codePath || path.join(projectPath || `projects/${pipelineId}`, 'src');
+  const wsPath = workspacePath || `workspace/${pipelineId}`;
   
   const stepPrompts = [
-    `# 角色：开发者 - 步骤 1/6：项目结构搭建
+    `# 角色：开发者 - 步骤 1/3：范围确认
 
 ## 用户需求
 ${rawInput}
@@ -1076,24 +1125,32 @@ ${specContext}
 ${techContext}
 
 ## 工作目录
-${projectDir}
+- 执行记录: ${wsPath}
+- 代码目录: ${projectDir}
 
 ## 你的任务
-根据技术实现文档和 OpenSpec，创建项目目录结构：
-1. 分析技术栈选型（前端框架、后端框架、数据库等）
-2. 创建对应的项目目录结构
-3. 初始化 Git 仓库
-4. 创建基础配置文件
+读取 OpenSpec change + 现有代码，确认实现范围：
 
-## 输出要求
-- 创建 ${projectDir}/ 目录结构（前后端分离或单体，根据技术文档决定）
-- package.json（前端+后端，根据技术栈决定）
-- .gitignore
-- 基础配置文件（数据库配置、环境变量等）
+1. 读取 OpenSpec Change Proposal:
+   - \`${wsPath}/../openspec/changes/*/proposal.md\` (需求背景)
+   - \`${wsPath}/../openspec/changes/*/design.md\` (技术设计)
+   - \`${wsPath}/../openspec/changes/*/tasks.md\` (任务清单 - **关键**)
 
-保存到: \`${projectDir}/\`
+2. 检查现有代码（如有）:
+   - \`${projectDir}/\`
+
+3. 确认本次实现范围，列出需要实现的任务列表
+
+## ⚠️ 强制要求
+- 直接确认范围并列出任务，不要询问是否可以继续
+- 如果代码已存在，分析完成度并列出剩余任务
+- 不要等待用户确认，直接输出任务列表并准备执行
+
+## 输出
+确认范围后直接输出任务列表到控制台，然后开始执行 Step 2
 `,
-    `# 角色：开发者 - 步骤 2/6：后端基础配置
+    // 步骤 2: 第1批任务 (1-10)
+    `# 角色：开发者 - 步骤 2/7：按 tasks.md 执行（第1批: 任务 1-10）
 
 ## 用户需求
 ${rawInput}
@@ -1101,120 +1158,131 @@ ${specContext}
 ${techContext}
 
 ## 工作目录
-${projectDir}
+- 执行记录: ${wsPath}
+- 代码目录: ${projectDir}
 
 ## 你的任务
-创建后端基础配置：
-1. 创建后端 package.json
-2. 安装后端依赖
-3. 配置数据库连接
-4. 配置中间件
+读取 tasks.md，确认总任务数，执行任务 1-10。
 
-## 输出要求
-- 后端 package.json
-- 依赖安装完成
-- 数据库配置文件
-- 中间件配置
+### ⚠️ 强制要求（必须遵守）
+- **直接执行任务，不要询问是否可以继续**
+- **不要输出 "Should I proceed?" 或类似确认请求**
+- 如果代码已存在，验证并补充完整
+- 发现问题直接修复，继续下一个任务
 
-保存到: \`${projectDir}/backend/\`
+## 输出
+每次任务完成输出 "[任务X] 完成: 任务描述"
+代码保存到 \`${projectDir}/\`
+完成后继续下一步
 `,
-    `# 角色：开发者 - 步骤 3/6：后端 API 实现
+    // 步骤 3: 第2批任务 (11-20)
+    `# 角色：开发者 - 步骤 3/7：按 tasks.md 执行（第2批: 任务 11-20）
 
 ## 用户需求
 ${rawInput}
-${specContext}
-${techContext}
 
 ## 工作目录
-${projectDir}
+- 执行记录: ${wsPath}
+- 代码目录: ${projectDir}
 
 ## 你的任务
-根据技术文档 API 清单实现所有后端接口：
-1. 创建路由定义
-2. 实现控制器逻辑
-3. 实现数据访问层
-4. 添加错误处理
+继续执行任务 11-20。
 
-## 输出要求
-- 所有 API 端点实现
-- 路由配置
-- 控制器
-- 数据访问层
+### ⚠️ 强制要求（必须遵守）
+- **直接执行任务，不要询问是否可以继续**
+- 如果代码已存在，验证并补充完整
+- 发现问题直接修复，继续下一个任务
 
-保存到: \`${projectDir}/backend/\`
+## 输出
+每次任务完成输出 "[任务X] 完成: 任务描述"
+完成后继续下一步
 `,
-    `# 角色：开发者 - 步骤 4/6：前端基础配置
+    // 步骤 4: 第3批任务 (21-30)
+    `# 角色：开发者 - 步骤 4/7：按 tasks.md 执行（第3批: 任务 21-30）
 
 ## 用户需求
 ${rawInput}
-${specContext}
-${techContext}
 
 ## 工作目录
-${projectDir}
+- 执行记录: ${wsPath}
+- 代码目录: ${projectDir}
 
 ## 你的任务
-创建前端项目：
-1. 创建前端 package.json
-2. 安装前端依赖
-3. 配置路由
-4. 配置状态管理
+继续执行任务 21-30。
 
-## 输出要求
-- 前端 package.json
-- 依赖安装完成
-- 路由配置
-- 状态管理配置
+### ⚠️ 强制要求（必须遵守）
+- **直接执行任务，不要询问是否可以继续**
+- 如果代码已存在，验证并补充完整
+- 发现问题直接修复，继续下一个任务
 
-保存到: \`${projectDir}/frontend/\`
+## 输出
+每次任务完成输出 "[任务X] 完成: 任务描述"
+完成后继续下一步
 `,
-    `# 角色：开发者 - 步骤 5/6：前端页面实现
+    // 步骤 5: 第4批任务 (31-40)
+    `# 角色：开发者 - 步骤 5/7：按 tasks.md 执行（第4批: 任务 31-40）
 
 ## 用户需求
 ${rawInput}
-${specContext}
-${techContext}
 
 ## 工作目录
-${projectDir}
+- 执行记录: ${wsPath}
+- 代码目录: ${projectDir}
 
 ## 你的任务
-根据产品界面布局实现所有前端页面：
-1. 创建页面组件
-2. 实现组件交互
-3. 连接 API
-4. 添加状态管理
+继续执行任务 31-40。
 
-## 输出要求
-- 所有页面组件
-- 组件交互逻辑
-- API 调用
-- 状态管理
+### ⚠️ 强制要求（必须遵守）
+- **直接执行任务，不要询问是否可以继续**
+- 如果代码已存在，验证并补充完整
+- 发现问题直接修复，继续下一个任务
 
-保存到: \`${projectDir}/frontend/\`
+## 输出
+每次任务完成输出 "[任务X] 完成: 任务描述"
+完成后继续下一步
 `,
-    `# 角色：开发者 - 步骤 6/6：生成开发文档
+    // 步骤 6: 第5批任务 (41-50 + 剩余)
+    `# 角色：开发者 - 步骤 6/7：按 tasks.md 执行（第5批: 任务 41-50 + 剩余）
 
 ## 用户需求
 ${rawInput}
-${specContext}
-${techContext}
 
 ## 工作目录
-${projectDir}
+- 执行记录: ${wsPath}
+- 代码目录: ${projectDir}
 
 ## 你的任务
-生成项目文档：
-1. README.md（项目说明）
-2. API.md（API 文档）
-3. 项目说明文档
+继续执行任务 41-50，然后检查是否还有剩余任务，如有则继续执行直到全部完成。
 
-## 输出要求
-- README.md
-- API.md
-- 项目说明
+### ⚠️ 强制要求（必须遵守）
+- **直接执行任务，不要询问是否可以继续**
+- 如果代码已存在，验证并补充完整
+- 发现问题直接修复，继续下一个任务
+- 任务全部完成后继续执行 Step 7（生成文档）
 
-保存到: \`${projectDir}/README.md\`, \`${projectDir}/API.md\`, \`${projectDir}/dev-summary.md\`
+## 输出
+每次任务完成输出 "[任务X] 完成: 任务描述"
+完成后继续执行 Step 7（生成文档）
+`,
+    // 步骤 7: 开发文档
+    `# 角色：开发者 - 步骤 7/7：开发文档
+
+## 用户需求
+${rawInput}
+
+## 工作目录
+- 执行记录: ${wsPath}
+- 代码目录: ${projectDir}
+
+## 你的任务
+生成开发文档：
+
+1. \`${wsPath}/developer/README.md\` - 运行说明
+2. \`${wsPath}/developer/API.md\` - 接口文档
+3. \`${wsPath}/developer/dev-summary.md\` - 开发摘要
+
+## 输出
+完成后列出所有生成的文件
 `
   ];
 
@@ -1671,9 +1739,9 @@ async function findOpenSpecChangeDir(projectPath) {
 // 定义每个角色的步骤数
 const ROLE_STEPS = {
   product: 5,
-  architect: 4,
-  tech_coach: 1,   // 单步角色：整合产出，输出技术实现文档
-  developer: 6,   // 项目初始化 → 后端配置 → 后端API → 前端配置 → 前端页面 → 文档
+  architect: 5,
+  tech_coach: 2,   // 步骤1: 信息收集(product/) + 步骤2: 技术实现
+  developer: 3,   // 范围确认 + tasks执行 + 开发文档
   tester: 4,
   ops: 4
 };
@@ -1695,7 +1763,17 @@ async function runIteration(sprintId, roleIndex, customModel = null, startStep =
   console.log(`📋 角色: ${sprint.iterations[roleIndex]?.role}`);
   
   // 收集上下文（用于传递给后续 Agent）
-  const projectId = sprint.projectId || sprintId;
+  // 新格式 sprintId = {projectId}-{uuid}，尝试从 sprintId 提取 projectId
+  let projectId = sprint.projectId;
+  if (!projectId && sprintId.includes('-')) {
+    // 尝试从 sprintId 前半部分提取 projectId (UUID 格式)
+    const parts = sprintId.split('-');
+    if (parts.length >= 5) {
+      projectId = parts.slice(0, 5).join('-');
+    }
+  }
+  projectId = projectId || sprintId; // fallback
+
   const context = {
     sprintId,
     projectId,
@@ -1832,22 +1910,24 @@ async function runIteration(sprintId, roleIndex, customModel = null, startStep =
       prompt = `执行 ${info.name} 任务\n\n用户需求: ${context.rawInput}`;
   }
    
-  // 如果指定了 stepIndex，添加步骤指示
-  console.log(`   📊 startStep: ${startStep}, parsed: ${stepIdx}, role: ${role}`);
-  if (stepIdx !== null) {
-    const stepGuidance = getStepGuidance(role, stepIdx);
-    prompt = `${prompt}\n\n## 当前执行步骤\n${stepGuidance}`;
-    console.log(`   📝 步骤指示: ${stepGuidance ? stepGuidance.split('\n')[0] : '无'}`);
-  } else {
-    console.log(`   📝 步骤指示: 未指定步骤`);
-  }
+   // 如果指定了 stepIndex，添加步骤指示
+   console.log(`   📊 startStep: ${startStep}, parsed: ${stepIdx}, role: ${role}`);
+   if (stepIdx !== null) {
+     const stepGuidance = getStepGuidance(role, stepIdx);
+     prompt = `${prompt}\n\n## 当前执行步骤\n${stepGuidance}`;
+     console.log(`   📝 步骤指示: ${stepGuidance ? stepGuidance.split('\n')[0] : '无'}`);
+   } else {
+     console.log(`   📝 步骤指示: 未指定步骤`);
+   }
+    
+   console.log(`   📋 Prompt 长度: ${prompt.length} 字符`);
    
-  console.log(`   📋 Prompt 长度: ${prompt.length} 字符`);
-  
-  // 更新状态为运行中
-  await axios.put(`${API_BASE}/api/sprints/${sprintId}/iterations/${roleIndex}/output`, {
-    output: '正在执行...'
-  });
+   // 更新状态为运行中（仅在第一步设置，后续步骤不覆盖输出）
+   if (stepIdx === 0 || stepIdx === null) {
+     await axios.put(`${API_BASE}/api/sprints/${sprintId}/iterations/${roleIndex}/output`, {
+       output: '正在执行...'
+     });
+   }
   
   try {
     // 执行 OpenCode - 优先使用传入的模型，否则使用环境变量，最后用默认
@@ -1875,22 +1955,36 @@ async function runIteration(sprintId, roleIndex, customModel = null, startStep =
     
     console.log(`   ✅ 执行完成，输出长度: ${rawOutput.length} 字符`);
     
-    // 解析输出 - product 角色需要解析 JSON，其他角色直接保存
-    let output = rawOutput;
-    if (role === 'product') {
-      const parsed = parseOpenCodeOutput(rawOutput);
-      output = parsed.text || rawOutput;
-    }
+    // 解析输出 - 从 opencode JSON 流中提取文本
+    const parsed = parseOpenCodeOutput(rawOutput);
+    let output = parsed.text || rawOutput;
     
     // 确保输出不为空
     if (!output || output.trim() === '') {
       output = `${role} 执行完成，但未生成有效输出`;
     }
     
-    // 保存输出
-    await axios.put(`${API_BASE}/api/sprints/${sprintId}/iterations/${roleIndex}/output`, {
-      output
-    });
+    // 保存输出（多步骤角色：追加到现有输出，不覆盖）
+    const stepCount = ROLE_STEPS[role] || 1;
+    if (stepCount > 1 && stepIdx !== null) {
+      // 多步骤角色：读取现有输出并追加
+      try {
+        const { data: sprintData } = await axios.get(`${API_BASE}/api/sprints/${sprintId}`);
+        const existingOutput = sprintData?.iterations?.[roleIndex]?.output || '';
+        const combined = existingOutput === '正在执行...' ? output : existingOutput + '\n\n---\n\n' + output;
+        await axios.put(`${API_BASE}/api/sprints/${sprintId}/iterations/${roleIndex}/output`, {
+          output: combined
+        });
+      } catch (e) {
+        await axios.put(`${API_BASE}/api/sprints/${sprintId}/iterations/${roleIndex}/output`, {
+          output
+        });
+      }
+    } else {
+      await axios.put(`${API_BASE}/api/sprints/${sprintId}/iterations/${roleIndex}/output`, {
+        output
+      });
+    }
     
     console.log(`   ✅ 输出已保存`);
     
@@ -1966,7 +2060,7 @@ async function main() {
   }
   
   // 获取角色名称和步骤数
-  const roleName = ['ba', 'product', 'architect', 'tech_coach', 'developer', 'tester', 'ops', 'evolver', 'ghost', 'creative'][roleIndex] || 'unknown';
+  const roleName = ['ba', 'product', 'tech_coach', 'architect', 'developer', 'tester', 'ops', 'evolver', 'ghost', 'creative'][roleIndex] || 'unknown';
   const totalSteps = ROLE_STEPS[roleName] || 1;
   
   // 如果没有指定 stepIndex，从第 0 步开始（会连续执行所有步骤）

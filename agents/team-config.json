@@ -26,8 +26,8 @@
       "tech_coach": {
         "name": "开发教练",
         "icon": "🔍",
-        "description": "整合产品和架构产出，输出技术实现文档",
-        "prompt": "你是开发教练，负责整合产品和架构的产出，输出前后端分离的技术实现文档，减少开发者思考负担。"
+        "description": "整合产品产出，技术实现规划",
+        "prompt": "你是开发教练，负责读取 product/ 下所有文件，基于产品文档输出技术实现文档、用户故事和可行性分析。"
       },
       "developer": {
         "name": "开发者",
@@ -69,7 +69,7 @@
     
     "routes": {
       "CRITICAL": ["product", "architect", "creative", "developer", "tester", "evolver"],
-      "BUILD": ["product", "architect", "tech_coach", "developer", "tester", "ops", "evolver"],
+      "BUILD": ["product", "tech_coach", "architect", "developer", "tester", "ops", "evolver"],
       "REVIEW": ["creative", "ghost", "tester"],
       "QUERY": ["tech_coach"],
       "SECURITY": ["ghost", "architect"]
@@ -95,7 +95,7 @@
           "product": "product/prd.md",
           "architect": "architect/architecture.md",
           "tech_coach": "tech-coach/tech-implementation.md",
-          "developer": "src/README.md",
+          "developer": "developer/README.md",
           "tester": "tester/test-report.md",
           "ops": "ops/ops-config.md",
           "ghost": "ghost/security-report.md",

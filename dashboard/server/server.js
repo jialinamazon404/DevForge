@@ -17,7 +17,7 @@ const PROJECTS_DIR = path.join(ROOT, 'projects');
 const AI_AGENT_EXECUTOR = path.join(ROOT, 'ai-agent-executor.js');
 
 // BUILD 流程默认角色
-const DEFAULT_ROLES = ['product', 'architect', 'tech_coach', 'developer', 'tester', 'ops', 'evolver'];
+const DEFAULT_ROLES = ['product', 'tech_coach', 'architect', 'developer', 'tester', 'ops', 'evolver'];
 
 // 角色信息
 const ROLE_INFO = {
@@ -242,7 +242,14 @@ class SprintManager {
   }
 
   async create(projectId, data) {
-    const id = uuidv4();
+    // 验证 projectId 不能为空
+    if (!projectId) {
+      throw new Error('projectId is required. Please select a project before creating a sprint.');
+    }
+
+    // Sprint ID 格式: {projectId}-{uuid}
+    const shortUuid = uuidv4().slice(0, 8);
+    const id = `${projectId}-${shortUuid}`;
     const sprintNumber = (this.sprints.size || 0) + 1;
 
     const sprint = {
@@ -523,7 +530,7 @@ app.put('/api/sprints/:sprintId/iterations/:roleIndex/confirm', async (req, res)
       await fs.mkdir(outputDir, { recursive: true });
       
       // 根据角色确定文件名
-      const roleNames = ['ba', 'product', 'architect', 'developer', 'tester', 'ops', 'evolver', 'ghost', 'creative'];
+      const roleNames = ['ba', 'product', 'tech_coach', 'architect', 'developer', 'tester', 'ops', 'evolver', 'ghost', 'creative'];
       const role = iteration.role || roleNames[roleIndex] || 'unknown';
       const fileNameMap = {
         'ba': 'ba-analysis.md',
@@ -549,7 +556,7 @@ app.put('/api/sprints/:sprintId/iterations/:roleIndex/confirm', async (req, res)
       const nextIteration = sprint.iterations[roleIndex + 1];
       const nextRole = nextIteration?.role;
       
-      // 角色顺序: product, architect, tech_coach, developer, tester, ops
+      // 角色顺序: product, tech_coach, architect, developer, tester, ops
       // Ops 需要从 Developer 获取输入，其他角色从上一个角色获取输入
       if (nextRole === 'ops') {
         // Ops 从 Developer 获取输入
@@ -704,6 +711,16 @@ app.post('/api/sprints/:sprintId/iterations/:roleIndex/execute', async (req, res
       return res.status(400).json({ error: '需要用户先输入' });
     }
 
+    // 检查前一个角色是否已完成（串行执行保证）
+    if (roleIndex > 0) {
+      const prevIteration = sprint.iterations[roleIndex - 1];
+      if (!prevIteration || (prevIteration.status !== 'completed' && prevIteration.status !== 'confirmed')) {
+        return res.status(400).json({ 
+          error: `前一个角色（${prevIteration?.roleInfo?.name || '未知'}）尚未完成，无法执行当前角色` 
+        });
+      }
+    }
+
     // 更新状态为运行中
     iteration.status = 'running';
     iteration.startedAt = new Date().toISOString();
@@ -770,7 +787,7 @@ app.post('/api/sprints/:sprintId/iterations/:roleIndex/execute', async (req, res
       console.log(`[agent] Process exited with code ${code}`);
       runningAgents.delete(`${sprintId}-${roleIndex}`);
       
-      // 等待一下让 agentProc 完全结束，然后更新状态
+      // 等待 agent 完全结束并保存输出
       setTimeout(async () => {
         try {
           const sprint = await sprintManager.get(sprintId);
@@ -779,11 +796,12 @@ app.post('/api/sprints/:sprintId/iterations/:roleIndex/execute', async (req, res
             const output = iteration.output;
             
             if (output && output !== '正在执行...' && !output.includes('执行失败')) {
-              // 禁用自动确认，等待用户手动确认
+              // 输出已保存，标记为完成
               iteration.status = 'completed';
+              iteration.completedAt = new Date().toISOString();
               await sprintManager.save(sprintId);
               io.emit('iteration:completed', { sprintId, roleIndex });
-              console.log(`[step-complete] 角色 ${roleIndex} 已完成，等待用户确认`);
+              console.log(`[step-complete] 角色 ${roleIndex} 已完成`);
                
             } else {
               iteration.status = 'waiting_input';
@@ -794,7 +812,7 @@ app.post('/api/sprints/:sprintId/iterations/:roleIndex/execute', async (req, res
         } catch (e) {
           console.error('更新 iteration 状态失败:', e.message);
         }
-      }, 1000);
+      }, 3000);
     });
 
     io.emit('iteration:execution:started', { sprintId, roleIndex });
@@ -1298,8 +1316,9 @@ app.get('/api/sprints/:sprintId/files', async (req, res) => {
     // 定义各角色可能生成的文件（workspace 执行记录）
     const roleFileMap = {
       product: ['product/prd.md', 'product/prd.json', 'product/user-personas.md', 'product/user-stories.md', 'product/functional-requirements.md', 'product/ui-layout.md', 'product/user-journey.md'],
-      architect: ['architect/architecture.md', 'output/architect-step1.md', 'output/architect-step2.md', 'output/architect-step3.md'],
+      architect: ['architect/architecture.md', 'architect/api-design.md', 'architect/database.md', 'architect/data-flow.md'],
       tech_coach: ['tech-coach/tech-implementation.md', 'output/user-stories.md', 'output/tech-feasibility.md'],
+      developer: ['developer/README.md', 'developer/API.md', 'developer/dev-summary.md'],
       tester: ['tester/test-report.md', 'tester/security-report.md', 'tester/test-cases.md', 'tester/test-results.md', 'tester/security-scan.md'],
       ops: ['ops/Dockerfile', 'ops/docker-compose.yml', 'ops/ops-config.md', 'ops/env-analysis.md', 'ops/.github/workflows/deploy.yml']
     };

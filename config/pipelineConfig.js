@@ -2,7 +2,7 @@
 
 export const ROUTES = {
   CRITICAL: ['product', 'architect', 'creative', 'developer', 'tester', 'evolver'],
-  BUILD: ['product', 'architect', 'tech_coach', 'developer', 'tester', 'ops', 'evolver'],
+  BUILD: ['product', 'tech_coach', 'architect', 'developer', 'tester', 'ops', 'evolver'],
   REVIEW: ['creative', 'ghost', 'tester'],
   QUERY: ['tech_coach'],
   SECURITY: ['ghost', 'architect']
@@ -11,8 +11,8 @@ export const ROUTES = {
 export const ROLE_NAMES = {
   gatekeeper: '守门人',
   product: '产品',
-  architect: '架构师',
   tech_coach: '开发教练',
+  architect: '架构师',
   developer: '开发',
   tester: '测试',
   ops: '运维',
@@ -21,4 +21,4 @@ export const ROLE_NAMES = {
   evolver: '进化'
 };
 
-export const DEFAULT_ROLES = ['product', 'architect', 'tech_coach', 'developer', 'tester', 'ops', 'evolver'];
+export const DEFAULT_ROLES = ['product', 'tech_coach', 'architect', 'developer', 'tester', 'ops', 'evolver'];

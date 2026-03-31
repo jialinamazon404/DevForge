@@ -3,11 +3,9 @@ dist/
 .env
 *.log
 .DS_Store
-workspace/*/developer/
-workspace/*/developer/**/*
-projects/*/src/
-projects/*/src/**/*
-projects/*/openspec/
-projects/*/openspec/**/*
 state/
 *.pid
+
+# Runtime data - do not commit
+projects/
+workspace/

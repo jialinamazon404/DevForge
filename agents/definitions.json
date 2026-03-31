@@ -11,7 +11,7 @@
         "route": "CRITICAL|BUILD|REVIEW|QUERY|SECURITY",
         "pipeline": {
           "id": "uuid",
-          "stages": ["product", "architect", "tech_coach", "developer", "tester", "ops", "evolver"],
+          "stages": ["product", "tech_coach", "architect", "developer", "tester", "ops", "evolver"],
           "context": {}
         }
       },
@@ -100,20 +100,21 @@
       "name": "架构师",
       "name_en": "Architect",
       "icon": "🏗️",
-      "goal": "基于 PRD 生成 OpenSpec（系统设计、API 规范、数据模型、技术选型）",
+      "goal": "基于 change-request.md 生成 OpenSpec（系统设计、API规范、数据模型、技术选型）",
       "tools": ["read", "write", "grep", "glob"],
-      "skills": [],
       "step_skills": {
         "0": "system-design",
         "1": "api-design",
         "2": "database-design",
-        "3": null
+        "3": null,
+        "4": null
       },
       "steps": [
-        {"id": 1, "name": "系统架构设计", "prompt": "基于 PRD 设计系统架构，包含组件划分、技术栈选型"},
-        {"id": 2, "name": "API 接口设计", "prompt": "设计 RESTful API 接口规范"},
-        {"id": 3, "name": "数据库模型设计", "prompt": "设计数据库表结构和关系"},
-        {"id": 4, "name": "OpenSpec Change Proposal", "prompt": "使用 OpenSpec CLI 创建 change proposal（proposal.md, design.md, tasks.md）"}
+        {"id": 1, "name": "系统设计", "prompt": "基于 change-request.md 设计系统架构，包含组件划分、技术栈选型"},
+        {"id": 2, "name": "API 设计", "prompt": "基于 change-request.md + 系统设计输出 RESTful API 接口规范"},
+        {"id": 3, "name": "表设计", "prompt": "基于 change-request.md + 系统设计输出数据库表结构和关系"},
+        {"id": 4, "name": "业务数据流转图", "prompt": "基于步骤 1-3 输出业务数据流转图（Mermaid）"},
+        {"id": 5, "name": "OpenSpec Change Proposal", "prompt": "基于步骤 1-4 产出 + change-request.md，生成 OpenSpec（proposal.md, design.md, tasks.md）"}
       ],
       "scenarios": {
         "新系统架构设计": {
@@ -135,14 +136,14 @@
           "output": "高并发架构改造方案"
         }
       },
-      "input": "PRD 文档",
+      "input": "change-request.md（来自 Tech Coach）",
       "thinking_template": [
-        "1. 分析功能范围和技术边界",
-        "2. 设计系统架构（组件划分）",
-        "3. 设计 API 接口",
-        "4. 设计数据模型",
-        "5. 确定技术选型",
-        "6. 识别风险和依赖"
+        "1. 读取 change-request.md 理解需求",
+        "2. 设计系统架构（组件划分、技术选型）",
+        "3. 设计 API 接口规范",
+        "4. 设计数据库表结构",
+        "5. 绘制业务数据流转图",
+        "6. 生成 OpenSpec Change Proposal"
       ],
       "output": {
         "openspec": {
@@ -175,22 +176,30 @@
       "name": "开发教练",
       "name_en": "Tech Coach",
       "icon": "🔍",
-      "goal": "整合产品和架构产出，输出技术实现文档（分前后端），减少开发者思考负担",
+      "goal": "整合产品产出，生成 change-request，技术实现规划",
       "tools": ["read", "write", "glob", "grep"],
-      "input": "PRD + OpenSpec + 功能清单 + 界面布局 + 用户故事",
+      "step_skills": {
+        "0": null,
+        "1": null
+      },
+      "steps": [
+        {"id": 1, "name": "信息收集", "prompt": "读取 product/ 下所有文件，生成 change-request.md（提炼需求 + 补充技术视角）"},
+        {"id": 2, "name": "技术实现", "prompt": "基于 change-request.md 输出技术实现文档、用户故事、可行性分析"}
+      ],
+      "input": "PRD + 功能清单 + 界面布局 + 用户故事",
       "thinking_template": [
-        "1. 整合产品产出（PRD、功能清单、界面布局、用户故事）",
-        "2. 整合架构产出（OpenSpec、API设计、数据模型）",
-        "3. 前端实现规划（组件结构、路由、状态管理、API调用）",
-        "4. 后端实现规划（API清单、数据库实现、业务逻辑、认证权限）",
-        "5. 技术可行性分析（风险点、实现难点）",
-        "6. 开发任务拆解（用户故事→开发任务）"
+        "1. 读取 product/ 下所有文件（prd.md, user-stories.md, functional-requirements.md, user-journey.md, ui-layout.md, user-personas.md）",
+        "2. 提炼产品需求，补充技术视角",
+        "3. 生成 change-request.md（整合需求 + 技术考量）",
+        "4. 基于 change-request.md 规划前端实现",
+        "5. 基于 change-request.md 规划后端实现",
+        "6. 技术可行性分析"
       ],
       "output": {
-        "frontend_implementation": "前端实现文档（组件结构、路由、状态管理、API调用封装）",
-        "backend_implementation": "后端实现文档（API清单、数据库实现、业务逻辑、认证权限）",
-        "tech_feasibility": "技术可行性分析（风险点、实现难点）",
-        "task_breakdown": "开发任务拆解（对应用户故事）"
+        "change_request": "整合需求文档（产品需求 + 技术视角）",
+        "frontend_implementation": "前端实现文档",
+        "backend_implementation": "后端实现文档",
+        "tech_feasibility": "技术可行性分析"
       },
       "output_files": {
         "techImplementation": {
@@ -217,24 +226,14 @@
       "name": "开发者",
       "name_en": "Developer",
       "icon": "💻",
-      "goal": "基于技术实现文档和 OpenSpec 实现代码，编写测试，Git 提交",
+      "goal": "基于 OpenSpec tasks.md 按序实现代码，编写测试，生成开发文档",
       "tools": ["read", "write", "edit", "bash", "git"],
       "skills": [],
-      "step_skills": {
-        "0": null,
-        "1": null,
-        "2": "api-design",
-        "3": null,
-        "4": null,
-        "5": "test-driven-development"
-      },
+      "step_skills": {},
       "steps": [
-        {"id": 1, "name": "项目结构", "prompt": "根据技术文档创建项目目录结构"},
-        {"id": 2, "name": "后端配置", "prompt": "配置后端基础环境和依赖"},
-        {"id": 3, "name": "后端 API", "prompt": "实现所有后端 API 接口"},
-        {"id": 4, "name": "前端配置", "prompt": "配置前端项目和依赖"},
-        {"id": 5, "name": "前端页面", "prompt": "实现所有前端页面和组件"},
-        {"id": 6, "name": "开发文档", "prompt": "生成 README 和 API 文档"}
+        {"id": 1, "name": "范围确认", "prompt": "读取 OpenSpec change + 现有代码，确认实现范围"},
+        {"id": 2, "name": "按 tasks.md 执行", "prompt": "按 OpenSpec tasks.md 顺序逐个实现任务"},
+        {"id": 3, "name": "开发文档", "prompt": "生成 README.md, API.md, dev-summary.md"}
       ],
       "scenarios": {
         "日常功能开发": {
@@ -259,16 +258,17 @@
           "output": "前端/后端代码、单元测试、依赖报告"
         }
       },
-      "input": "OpenSpec 文档 + Scout 报告",
+      "input": "OpenSpec tasks.md + tech-implementation.md",
       "thinking_template": [
-        "1. 理解要实现的功能范围",
-        "2. 规划文件结构和实现顺序",
-        "3. TDD 循环（RED-GREEN-REFACTOR）",
-        "4. 确保代码符合规范",
-        "5. 自测验证"
+        "1. 读取 OpenSpec change（proposal.md, design.md, tasks.md）确认范围",
+        "2. 读取 tech-implementation.md 理解技术实现方案",
+        "3. 按 tasks.md 顺序逐个实现任务",
+        "4. 每个任务：TDD 循环（RED-GREEN-REFACTOR）",
+        "5. 完成后生成开发文档"
       ],
       "output": {
-        "branch": "feature/{pipelineId}",
+        "branch": "feature/{sprintId}",
+        "tasks_completed": [],
         "files": [],
         "commits": [],
         "test_results": {"passed": 0, "failed": 0, "total": 0},
@@ -276,39 +276,32 @@
       },
       "output_files": {
         "devSummary": {
-          "path": "src/dev-summary.md",
+          "path": "developer/dev-summary.md",
           "description": "开发摘要文档",
           "type": "markdown",
-          "required": true,
-          "source": "project"
+          "required": true
         },
         "readme": {
-          "path": "src/README.md",
+          "path": "developer/README.md",
           "description": "运行说明",
           "type": "markdown",
-          "category": "code",
-          "source": "project"
+          "required": true
         },
         "apiDoc": {
-          "path": "src/API.md",
+          "path": "developer/API.md",
           "description": "接口文档",
           "type": "markdown",
-          "category": "code",
-          "source": "project"
+          "required": true
         },
         "frontend": {
-          "path": "src/frontend/",
+          "path": "developer/frontend/",
           "description": "前端代码目录",
-          "type": "directory",
-          "category": "code",
-          "source": "project"
+          "type": "directory"
         },
         "backend": {
-          "path": "src/backend/",
+          "path": "developer/backend/",
           "description": "后端代码目录",
-          "type": "directory",
-          "category": "code",
-          "source": "project"
+          "type": "directory"
         }
       }
     },
@@ -539,7 +532,7 @@
   },
   "routes": {
     "CRITICAL": ["product", "architect", "creative", "developer", "tester", "evolver"],
-    "BUILD": ["product", "architect", "tech_coach", "developer", "tester", "ops", "evolver"],
+    "BUILD": ["product", "tech_coach", "architect", "developer", "tester", "ops", "evolver"],
     "REVIEW": ["creative", "ghost", "tester"],
     "QUERY": ["tech_coach"],
     "SECURITY": ["ghost", "architect"]

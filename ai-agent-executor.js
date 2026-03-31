@@ -127,7 +127,7 @@ async function saveThinking(pipelineId, role, thinking) {
  * 获取阶段索引
  */
 function getStageIndex(role) {
-  const order = ['product', 'architect', 'tech_coach', 'developer', 'tester', 'ops', 'ghost', 'creative', 'evolver'];
+  const order = ['product', 'tech_coach', 'architect', 'developer', 'tester', 'ops', 'ghost', 'creative', 'evolver'];
   return order.indexOf(role);
 }
 
