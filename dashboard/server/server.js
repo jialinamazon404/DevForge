@@ -10,22 +10,22 @@ import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROOT = path.resolve(__dirname, '..', '..');
+const ROOT = '/Users/jialin.chen/WorkSpace/DevForge';
 
 // 配置路径 - 新结构 projects/{projectId}/sprints/{sprintId}/
 const PROJECTS_DIR = path.join(ROOT, 'projects');
 const AI_AGENT_EXECUTOR = path.join(ROOT, 'ai-agent-executor.js');
 
 // BUILD 流程默认角色
-const DEFAULT_ROLES = ['product', 'architect', 'scout', 'developer', 'tester', 'ops', 'evolver'];
+const DEFAULT_ROLES = ['product', 'architect', 'tech_coach', 'developer', 'tester', 'ops', 'evolver'];
 
 // 角色信息
 const ROLE_INFO = {
-  product: { icon: '📋', name: '产品经理', name_en: 'Product Manager' },
+  product: { icon: '📋', name: '产品经理', name_en: 'Product BA' },
   architect: { icon: '🏗️', name: '架构师', name_en: 'Architect' },
-  scout: { icon: '🔍', name: '侦察兵', name_en: 'Scout' },
+  tech_coach: { icon: '🔍', name: '开发教练', name_en: 'Tech Coach' },
   developer: { icon: '💻', name: '开发者', name_en: 'Developer' },
-  tester: { icon: '🧪', name: '测试工程师', name_en: 'Tester' },
+  tester: { icon: '🧪', name: '测试工程师', name_en: 'QA Engineer' },
   ops: { icon: '⚙️', name: '运维工程师', name_en: 'DevOps' },
   evolver: { icon: '🔄', name: '进化顾问', name_en: 'Evolver' }
 };
@@ -549,7 +549,7 @@ app.put('/api/sprints/:sprintId/iterations/:roleIndex/confirm', async (req, res)
       const nextIteration = sprint.iterations[roleIndex + 1];
       const nextRole = nextIteration?.role;
       
-      // 角色顺序: product, architect, scout, developer, tester, ops
+      // 角色顺序: product, architect, tech_coach, developer, tester, ops
       // Ops 需要从 Developer 获取输入，其他角色从上一个角色获取输入
       if (nextRole === 'ops') {
         // Ops 从 Developer 获取输入
@@ -577,6 +577,42 @@ app.put('/api/sprints/:sprintId/iterations/:roleIndex/confirm', async (req, res)
     await sprintManager.save(sprint.id);
     io.emit('iteration:confirmed', { sprintId: sprint.id, roleIndex, iteration, nextRoleIndex: sprint.currentRoleIndex });
     res.json({ success: true, nextRoleIndex: sprint.currentRoleIndex });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 设置测试环境地址
+app.put('/api/sprints/:sprintId/iterations/:roleIndex/environment', async (req, res) => {
+  try {
+    const sprint = await sprintManager.get(req.params.sprintId);
+    if (!sprint) {
+      return res.status(404).json({ error: 'Sprint not found' });
+    }
+
+    const roleIndex = parseInt(req.params.roleIndex);
+    const iteration = sprint.iterations[roleIndex];
+    if (!iteration) {
+      return res.status(404).json({ error: 'Iteration not found' });
+    }
+
+    const { testEnvironmentUrl } = req.body;
+    iteration.testEnvironmentUrl = testEnvironmentUrl || '';
+    
+    // 如果设置了环境地址，清除跳过标记
+    if (testEnvironmentUrl) {
+      iteration.environmentDeferred = false;
+      iteration.environmentDeferredAt = null;
+    }
+
+    await sprintManager.save(sprint.id);
+    io.emit('iteration:environmentUpdated', { 
+      sprintId: sprint.id, 
+      roleIndex, 
+      testEnvironmentUrl: iteration.testEnvironmentUrl 
+    });
+    
+    res.json({ success: true, testEnvironmentUrl: iteration.testEnvironmentUrl });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -651,6 +687,7 @@ app.post('/api/sprints/:sprintId/iterations/:roleIndex/execute', async (req, res
   try {
     const sprintId = req.params.sprintId;
     const roleIndex = parseInt(req.params.roleIndex);
+    const stepIndex = req.body.stepIndex !== undefined ? parseInt(req.body.stepIndex) : null;
 
     const sprint = await sprintManager.get(sprintId);
     if (!sprint) {
@@ -694,13 +731,19 @@ app.post('/api/sprints/:sprintId/iterations/:roleIndex/execute', async (req, res
     }
 
     // 启动 Agent Executor 进程
-    console.log(`🚀 启动 Agent Executor for sprint ${sprintId.slice(0, 8)}, role ${roleIndex}`);
+    console.log(`🚀 启动 Agent Executor for sprint ${sprintId.slice(0, 8)}, role ${roleIndex}, step ${stepIndex}`);
 
     const apiPort = process.env.PORT || 3000;
     const roleName = iteration.role;
     const model = modelConfig[roleName] || 'opencode/big-pickle';
     
-    const agentProc = spawn('node', [AI_AGENT_EXECUTOR_SPRINT, sprintId, roleIndex.toString(), model], {
+    // 构建参数: sprintId, roleIndex, model, stepIndex
+    const args = [AI_AGENT_EXECUTOR_SPRINT, sprintId, roleIndex.toString(), model];
+    if (stepIndex !== null) {
+      args.push(stepIndex.toString());
+    }
+    
+    const agentProc = spawn('node', args, {
       cwd: ROOT,
       stdio: ['pipe', 'pipe', 'pipe'],
       env: { ...process.env, API_BASE: `http://localhost:${apiPort}`, AGENT_MODEL: model }
@@ -736,45 +779,12 @@ app.post('/api/sprints/:sprintId/iterations/:roleIndex/execute', async (req, res
             const output = iteration.output;
             
             if (output && output !== '正在执行...' && !output.includes('执行失败')) {
+              // 禁用自动确认，等待用户手动确认
               iteration.status = 'completed';
-              
-              // ========== 自动确认 ==========
-              try {
-                iteration.status = 'confirmed';
-                iteration.completedAt = new Date().toISOString();
-                
-                if (roleIndex < sprint.iterations.length - 1) {
-                  const nextIteration = sprint.iterations[roleIndex + 1];
-                  const nextRole = nextIteration?.role;
-                  
-                  if (nextRole === 'ops') {
-                    const developerIndex = sprint.iterations.findIndex(i => i.role === 'developer');
-                    if (developerIndex >= 0) {
-                      nextIteration.userInput = sprint.iterations[developerIndex].output;
-                    }
-                  } else {
-                    nextIteration.userInput = iteration.output;
-                  }
-                  
-                  sprint.currentRoleIndex = roleIndex + 1;
-                  sprint.status = 'running';
-                  sprint.iterations[sprint.currentRoleIndex].status = 'ready';
-                } else {
-                  sprint.status = 'completed';
-                  sprint.currentRoleIndex = sprint.iterations.length;
-                }
-                
-                await sprintManager.save(sprintId);
-                io.emit('iteration:confirmed', { sprintId, roleIndex, nextRoleIndex: sprint.currentRoleIndex });
-                console.log(`[auto-confirm] 角色 ${roleIndex} 已自动确认，流转到 ${sprint.currentRoleIndex}`);
-              } catch (autoErr) {
-                console.error('[auto-confirm] 自动确认失败，保持 completed 状态:', autoErr.message);
-                // 回退：保持在 completed，用户可手动确认
-                await sprintManager.save(sprintId);
-                io.emit('iteration:confirmed', { sprintId, roleIndex });
-              }
-              // ========== 结束 ==========
-              
+              await sprintManager.save(sprintId);
+              io.emit('iteration:completed', { sprintId, roleIndex });
+              console.log(`[step-complete] 角色 ${roleIndex} 已完成，等待用户确认`);
+               
             } else {
               iteration.status = 'waiting_input';
               await sprintManager.save(sprintId);
@@ -1175,16 +1185,33 @@ app.get('/api/sprints/:sprintId/file', async (req, res) => {
     }
 
     const sprintId = req.params.sprintId;
-    const workspacePath = path.join(ROOT, '..', 'workspace', sprintId);
-    const fullPath = path.join(workspacePath, file);
-
-    // 安全检查：防止路径穿越
-    if (!fullPath.startsWith(workspacePath)) {
-      return res.status(403).json({ error: 'Invalid file path' });
+    const baseWorkspacePath = path.join(ROOT, 'workspace', sprintId);
+    
+    // 尝试多个可能的位置
+    const possiblePaths = [
+      path.join(baseWorkspacePath, 'output', file),           // output/prd.md
+      path.join(baseWorkspacePath, file),                     // prd.md (根目录)
+      path.join(baseWorkspacePath, 'product', file),          // product/prd.md
+      path.join(baseWorkspacePath, 'architect', file),        // architect/openspec.md
+      path.join(baseWorkspacePath, 'developer', file),        // developer/README.md
+      path.join(baseWorkspacePath, 'execution-log', file),     // execution-log/01-product.json
+    ];
+    
+    let fullPath = null;
+    for (const p of possiblePaths) {
+      if (fsSync.existsSync(p)) {
+        fullPath = p;
+        break;
+      }
+    }
+    
+    if (!fullPath) {
+      return res.status(404).json({ error: 'File not found', searched: possiblePaths });
     }
 
-    if (!fsSync.existsSync(fullPath)) {
-      return res.status(404).json({ error: 'File not found' });
+    // 安全检查：防止路径穿越 - 确保文件在 workspace 目录内
+    if (!fullPath.startsWith(baseWorkspacePath)) {
+      return res.status(403).json({ error: 'Invalid file path' });
     }
 
     const stat = await fs.stat(fullPath);
@@ -1229,6 +1256,51 @@ app.get('/api/sprints/:sprintId/file', async (req, res) => {
       content,
       size: stat.size
     });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// 获取 sprint 的实际文件列表
+app.get('/api/sprints/:sprintId/files', async (req, res) => {
+  try {
+    const sprintId = req.params.sprintId;
+    const basePath = path.join(ROOT, 'workspace', sprintId);
+    
+    if (!fsSync.existsSync(basePath)) {
+      return res.json({ files: [], message: '工作区不存在' });
+    }
+    
+    // 定义各角色可能生成的文件
+    const roleFileMap = {
+      product: ['product/prd.md', 'product/prd.json', 'product/user-personas.md', 'product/user-stories.md', 'product/functional-requirements.md', 'product/ui-layout.md', 'product/user-journey.md'],
+      architect: ['architect/openspec.yaml', 'architect/architecture.md', 'output/architect-step1.md', 'output/architect-step2.md', 'output/architect-step3.md'],
+      developer: ['developer/README.md', 'developer/API.md', 'developer/package.json', 'output/dev-summary.md'],
+      tester: ['tester/test-report.md', 'tester/security-report.md'],
+      ops: ['ops/Dockerfile', 'ops/docker-compose.yml', 'ops/ops-config.md']
+    };
+    
+    const allFiles = [];
+    
+    // 遍历所有可能的文件，检查是否存在
+    for (const [role, files] of Object.entries(roleFileMap)) {
+      for (const file of files) {
+        const fullPath = path.join(basePath, file);
+        const exists = fsSync.existsSync(fullPath);
+        if (exists) {
+          const stat = await fs.stat(fullPath);
+          allFiles.push({
+            role,
+            name: path.basename(file),
+            path: file,
+            size: stat.size,
+            exists: true
+          });
+        }
+      }
+    }
+    
+    res.json({ files: allFiles });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

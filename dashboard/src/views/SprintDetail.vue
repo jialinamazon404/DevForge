@@ -111,28 +111,145 @@
       </div>
 
       <div class="p-6 space-y-6">
-        <!-- 用户输入 -->
+        <!-- 角色产出大纲 -->
         <div class="bg-vue-darker rounded-vue p-4">
-          <h3 class="text-gray-400 text-sm mb-2">用户输入</h3>
+          <h3 class="text-gray-400 text-sm mb-2">角色产出大纲</h3>
+          
+          <!-- 显示上一角色的执行记录 -->
+          <div v-if="executionLog" class="space-y-3">
+            <div class="flex items-center space-x-3 bg-vue-card rounded-vue p-3">
+              <span class="text-2xl">{{ currentIteration?.roleInfo?.icon || '🤖' }}</span>
+              <div>
+                <div class="text-white font-medium">{{ currentIteration?.roleInfo?.name || '-' }}</div>
+                <div class="text-xs text-green-400">✅ 已完成</div>
+              </div>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-3 text-sm">
+              <div class="bg-vue-card rounded-vue p-3">
+                <div class="text-gray-500 text-xs mb-1">🛠️ 使用 Skill</div>
+                <div class="text-white">{{ executionLog.skill }}</div>
+              </div>
+              <div class="bg-vue-card rounded-vue p-3">
+                <div class="text-gray-500 text-xs mb-1">⏱️ 耗时</div>
+                <div class="text-white">{{ executionLog.duration }}</div>
+              </div>
+            </div>
+            
+            <div class="bg-vue-card rounded-vue p-3">
+              <div class="text-gray-500 text-xs mb-2">📝 执行步骤</div>
+              <div class="flex flex-wrap gap-2">
+                <span 
+                  v-for="step in executionLog.steps" 
+                  :key="step.id"
+                  class="px-2 py-1 bg-vue-darker rounded text-xs text-vue-primary"
+                >
+                  {{ step.name }}
+                </span>
+              </div>
+            </div>
+            
+            <div v-if="executionLog.outputFiles?.length > 0" class="bg-vue-card rounded-vue p-3">
+              <div class="text-gray-500 text-xs mb-2">📁 产出文件</div>
+              <div class="space-y-1">
+                <div 
+                  v-for="file in executionLog.outputFiles" 
+                  :key="file.path"
+                  class="flex items-center justify-between text-sm"
+                >
+                  <span class="text-gray-300">{{ file.name }}</span>
+                  <button 
+                    @click="openPreview(file.path)"
+                    class="text-vue-primary hover:text-vue-secondary"
+                  >
+                    查看
+                  </button>
+                </div>
+              </div>
+            </div>
+            
+            <div v-if="executionLog.outputPreview" class="bg-vue-card rounded-vue p-3">
+              <div class="flex items-center justify-between mb-2">
+                <div class="text-gray-500 text-xs">📄 输出预览</div>
+                <button 
+                  @click="showOutputPreview = !showOutputPreview"
+                  class="text-xs text-vue-primary hover:text-vue-secondary"
+                >
+                  {{ showOutputPreview ? '收起' : '展开' }}
+                </button>
+              </div>
+              <div v-if="showOutputPreview" class="text-xs text-gray-400 bg-vue-darker rounded p-3 max-h-48 overflow-y-auto whitespace-pre-wrap font-mono">
+                {{ executionLog.outputPreview }}
+              </div>
+              <div v-else class="text-xs text-gray-500 truncate">
+                {{ executionLog.outputPreview.slice(0, 100) }}...
+              </div>
+            </div>
+            
+            <div class="flex justify-end pt-2">
+              <button
+                @click="submitUserInput"
+                class="px-4 py-2 bg-gradient-to-r from-vue-primary to-vue-secondary text-white rounded-vue text-sm font-medium transition-all hover:shadow-vue-glow"
+              >
+                执行 {{ currentIteration?.roleInfo?.name }} ✓
+              </button>
+            </div>
+          </div>
           
           <!-- Product 角色：直接显示冲刺需求 -->
-          <div v-if="isProductRole && sprint?.rawInput" class="space-y-3">
-            <div class="text-white bg-vue-card rounded-vue p-3 max-h-[300px] overflow-auto">
+          <div v-else-if="isProductRole && sprint?.rawInput" class="space-y-3">
+            <div class="text-white bg-vue-card rounded-vue p-3 max-h-[200px] overflow-auto">
               {{ sprint.rawInput }}
             </div>
-            <div class="flex justify-end">
+            <div class="flex justify-end space-x-3">
+              <button
+                v-if="isProductRole && currentIteration?.status === 'completed'"
+                @click="rerunIteration"
+                class="px-4 py-2 bg-yellow-600/20 border border-yellow-600/50 text-yellow-400 hover:bg-yellow-600/30 rounded-vue text-sm transition-all"
+              >
+                重新生成 🔄
+              </button>
               <button
                 @click="submitUserInput"
                 :disabled="!canAutoExecute"
                 class="px-4 py-2 bg-gradient-to-r from-vue-primary to-vue-secondary disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-vue text-sm font-medium transition-all hover:shadow-vue-glow"
               >
-                确认需求并执行 ✓
+                执行 ✓
               </button>
             </div>
           </div>
           
+          <div v-else class="text-gray-500 italic">
+            等待上一角色完成...
+          </div>
+          
+          <!-- Tester 角色：环境地址输入 -->
+          <div v-if="isTesterRole" class="mt-4 space-y-3 bg-vue-card rounded-vue p-4">
+            <h3 class="text-gray-400 text-sm font-medium">🧪 测试环境配置</h3>
+            <div class="text-xs text-gray-500">
+              如有测试环境地址，Tester 将执行完整的运行时测试；否则执行静态代码审查
+            </div>
+            <div class="flex items-center space-x-2">
+              <input
+                v-model="testEnvironmentUrl"
+                type="text"
+                placeholder="输入测试环境地址，如 http://localhost:3000"
+                class="flex-1 bg-vue-darker border border-vue-border rounded-vue px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-vue-primary"
+              />
+              <button
+                @click="saveEnvironmentUrl"
+                class="px-3 py-2 bg-vue-primary/20 border border-vue-primary/50 text-vue-primary hover:bg-vue-primary/30 rounded-vue text-sm whitespace-nowrap"
+              >
+                保存地址
+              </button>
+            </div>
+            <div v-if="testEnvironmentUrl" class="text-xs text-green-400">
+              ✅ 已配置环境: {{ testEnvironmentUrl }}
+            </div>
+          </div>
+          
           <!-- 其他角色：用户输入 -->
-          <div v-else-if="canInput" class="space-y-3">
+          <div v-if="canInput && !executionLog" class="space-y-3">
             <textarea
               v-model="userInput"
               rows="4"
@@ -151,6 +268,13 @@
                   确认修改需求（低效行为）
                 </label>
               </div>
+              <button
+                v-if="!isProductRole && currentIteration?.status === 'completed'"
+                @click="rerunIteration"
+                class="px-4 py-2 bg-yellow-600/20 border border-yellow-600/50 text-yellow-400 hover:bg-yellow-600/30 rounded-vue text-sm transition-all"
+              >
+                重新生成 🔄
+              </button>
               <button
                 @click="submitUserInput"
                 :disabled="!userInput.trim()"
@@ -174,6 +298,9 @@
           <h3 class="text-gray-400 text-sm mb-2">Agent 输出</h3>
           <div class="text-xs text-gray-500 mb-2">
             状态: {{ currentIteration?.status }}
+            <span v-if="currentIteration?.status === 'running'" class="ml-2 text-vue-primary">
+              (步骤 {{ currentStepIndex + 1 }})
+            </span>
           </div>
           
           <!-- Tester 角色：显示摘要 -->
@@ -183,6 +310,29 @@
                 <span class="text-xl">⚠️</span>
                 <span class="font-medium">{{ testerSummary.message }}</span>
               </div>
+              <div class="mt-3 text-sm text-yellow-300/70">
+                可选择"确认并继续"跳过运行时测试，或补充环境地址后重新执行
+              </div>
+              <div class="mt-3 flex items-center space-x-2">
+                <input
+                  v-model="testEnvironmentUrl"
+                  type="text"
+                  placeholder="输入测试环境地址，如 http://localhost:3000"
+                  class="flex-1 bg-vue-darker border border-vue-border rounded-vue px-3 py-2 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-vue-primary"
+                />
+                <button
+                  @click="saveEnvironmentUrl"
+                  class="px-3 py-2 bg-vue-primary/20 border border-vue-primary/50 text-vue-primary hover:bg-vue-primary/30 rounded-vue text-sm"
+                >
+                  保存地址
+                </button>
+              </div>
+              <button
+                @click="skipAndContinue"
+                class="mt-3 w-full px-4 py-2 bg-yellow-600/20 border border-yellow-600/50 text-yellow-400 hover:bg-yellow-600/30 rounded-vue text-sm font-medium transition-all"
+              >
+                确认并继续（跳过运行时测试）➡
+              </button>
             </div>
             <div v-else-if="testerSummary.type === 'bugs'" class="bg-red-900/30 border border-red-700 rounded-vue p-4">
               <div class="flex items-center space-x-2 text-red-400">
@@ -208,43 +358,82 @@
           </div>
           
           <!-- 输出文件列表 -->
-          <div v-else-if="currentIteration?.output || currentIteration?.status === 'running'" class="space-y-4">
+          <div v-else-if="currentIteration?.output || currentIteration?.status === 'running' || (isProductRole && currentIteration?.status === 'waiting_input')" class="space-y-4">
             <!-- 文件列表显示 -->
-            <div v-if="currentIteration?.status === 'completed' || currentIteration?.status === 'confirmed'" class="space-y-3">
-              <h3 class="text-gray-400 text-sm font-medium mb-4">📁 输出文件</h3>
+            <div class="space-y-3">
+              <h3 class="text-gray-400 text-sm font-medium mb-4">
+                📁 输出文件
+                <span v-if="currentIteration?.status === 'running'" class="text-yellow-400 ml-2">(执行中...)</span>
+              </h3>
               <div 
                 v-for="file in currentOutputFiles" 
                 :key="file.path"
                 class="flex items-center justify-between bg-vue-darker rounded-vue p-3 border border-vue-border hover:border-vue-primary/50 transition-colors"
+                :class="{ 'opacity-50': file.loading }"
               >
                 <div class="flex items-center space-x-3">
-                  <span class="text-xl">{{ file.icon }}</span>
+                  <span v-if="file.loading" class="text-xl animate-spin">⏳</span>
+                  <span v-else class="text-xl">{{ file.icon }}</span>
                   <div>
-                    <div class="text-gray-200 text-sm font-medium">{{ file.name }}</div>
+                    <div class="text-gray-200 text-sm font-medium">
+                      {{ file.name }}
+                      <span v-if="file.loading" class="text-yellow-400 text-xs ml-2">生成中...</span>
+                      <span v-else-if="!file.exists && !file.loading" class="text-gray-500 text-xs ml-2">(未生成)</span>
+                    </div>
                     <div class="text-gray-500 text-xs">{{ workspaceBasePath + file.path }}</div>
                   </div>
                 </div>
                 <div class="flex space-x-2">
                   <button
+                    v-if="file.exists && !file.loading"
                     @click="openPreview(file)"
                     class="px-3 py-1.5 bg-purple-600/20 text-purple-400 hover:bg-purple-600/30 rounded text-xs transition-colors"
                   >
                     预览
                   </button>
                   <button
+                    v-if="file.exists && !file.loading"
                     @click="openFile(file.path)"
                     class="px-3 py-1.5 bg-vue-primary/20 text-vue-primary hover:bg-vue-primary/30 rounded text-xs transition-colors"
                   >
                     打开
                   </button>
                   <button
+                    v-if="file.exists && !file.loading"
                     @click="downloadFile(file.path)"
                     class="px-3 py-1.5 bg-gray-600/20 text-gray-300 hover:bg-gray-600/40 rounded text-xs transition-colors"
                   >
                     下载
                   </button>
+                  <span v-if="file.loading" class="px-3 py-1.5 text-gray-500 text-xs">
+                    等待...
+                  </span>
+                  <span v-if="!file.exists && !file.loading" class="px-3 py-1.5 text-gray-600 text-xs">
+                    -
+                  </span>
                 </div>
               </div>
+            </div>
+            
+            <!-- 可编辑输出文本框 -->
+            <div v-if="currentIteration?.status === 'completed'" class="mt-4 pt-4 border-t border-vue-border">
+              <div class="flex items-center justify-between mb-2">
+                <h3 class="text-gray-400 text-sm font-medium">
+                  📝 输出内容（可编辑）
+                </h3>
+                <button
+                  @click="saveEditedOutput"
+                  class="px-3 py-1 bg-blue-600/20 text-blue-400 hover:bg-blue-600/30 rounded text-xs transition-colors"
+                >
+                  保存修改
+                </button>
+              </div>
+              <textarea
+                v-model="editedOutput"
+                rows="8"
+                class="w-full bg-vue-darker border border-vue-border rounded-vue px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-vue-primary resize-y font-mono text-sm"
+                placeholder="Agent 输出内容，可在此修改..."
+              ></textarea>
             </div>
             
             <!-- 执行中状态 -->
@@ -256,19 +445,24 @@
               </div>
             </div>
             
-            <!-- 确认/重新执行按钮 -->
+            <!-- 确认/重新生成按钮 -->
             <div v-if="canConfirm" class="flex justify-end space-x-3 pt-4 border-t border-vue-border">
               <button
+                v-if="currentIteration?.status !== 'running'"
                 @click="rerunIteration"
                 class="px-4 py-2 bg-yellow-600/20 border border-yellow-600/50 text-yellow-400 hover:bg-yellow-600/30 rounded-vue text-sm transition-all"
               >
-                重新执行 🔄
+                重新生成 🔄
               </button>
               <button
                 @click="confirmOutput"
-                class="px-4 py-2 bg-gradient-to-r from-vue-primary to-vue-secondary text-white rounded-vue text-sm font-medium transition-all hover:shadow-vue-glow"
+                :disabled="currentIteration?.status === 'running'"
+                :class="currentIteration?.status === 'running' 
+                  ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+                  : 'bg-gradient-to-r from-vue-primary to-vue-secondary text-white hover:shadow-vue-glow'"
+                class="px-4 py-2 rounded-vue text-sm font-medium transition-all"
               >
-                确认输出 ✓
+                {{ currentIteration?.status === 'running' ? '执行中...' : (isProductRole && currentIteration?.status === 'waiting_input' ? '开始执行 ✓' : '确认输出 ✓') }}
               </button>
             </div>
           </div>
@@ -404,10 +598,11 @@ const store = useProjectStore()
 const sprint = computed(() => store.currentSprint)
 const selectedIterationIndex = ref(null)
 const userInput = ref('')
-const confirmModify = ref(false)
+const editedOutput = ref('')
 const showCancelConfirm = ref(false)
 const showCopySuccess = ref(false)
 const progressLog = ref('')
+const showOutputPreview = ref(false)
 
 // 预览弹窗状态
 const showPreview = ref(false)
@@ -416,26 +611,89 @@ const previewContent = ref('')
 const previewLoading = ref(false)
 const previewError = ref('')
 
+// Tester 环境地址
+const testEnvironmentUrl = ref('')
+
+// 当前步骤索引（用于步骤执行）
+const currentStepIndex = ref(0)
+
+// 执行记录数据
+const executionLog = ref(null)
+
+// 上一角色的输出（作为当前角色的输入）
+const previousOutput = computed(() => {
+  if (selectedIterationIndex.value === null || selectedIterationIndex.value === 0) return null
+  const prevIteration = sprint.value?.iterations[selectedIterationIndex.value - 1]
+  return prevIteration?.output || null
+})
+
+// 加载上一角色的执行记录
+async function loadExecutionLog() {
+  if (selectedIterationIndex.value === null || selectedIterationIndex.value === 0) {
+    executionLog.value = null
+    return
+  }
+  
+  const prevRoleIndex = selectedIterationIndex.value - 1
+  const prevIteration = sprint.value?.iterations[prevRoleIndex]
+  const role = prevIteration?.role
+  
+  if (!role) {
+    executionLog.value = null
+    return
+  }
+  
+  try {
+    const paddedIndex = String(prevRoleIndex + 1).padStart(2, '0')
+    const baseUrl = import.meta.env.VITE_API_BASE || 'http://localhost:3000'
+    const response = await fetch(`${baseUrl}/api/sprints/${props.sprintId}/file?file=execution-log/${paddedIndex}-${role}.json`)
+    if (response.ok) {
+      const data = await response.json()
+      // API 返回格式: { type: 'file', content: '...' }
+      if (data.type === 'file' && data.content) {
+        executionLog.value = JSON.parse(data.content)
+      } else {
+        executionLog.value = data
+      }
+    } else {
+      executionLog.value = null
+    }
+  } catch (e) {
+    console.log('加载执行记录失败:', e)
+    executionLog.value = null
+  }
+}
+
+// 是否是 Tester 角色
+const isTesterRole = computed(() => currentIteration.value?.role === 'tester')
+
 const currentIteration = computed(() => {
   if (selectedIterationIndex.value === null) return null
   return sprint.value?.iterations[selectedIterationIndex.value]
-})
-
-const canInput = computed(() => {
-  const iter = currentIteration.value
-  if (!iter) return false
-  return ['waiting_input', 'ready', 'pending'].includes(iter.status)
 })
 
 // 当前 iteration 是否可以确认（必须在完成状态且有输出）
 const canConfirm = computed(() => {
   const iter = currentIteration.value
   if (!iter) return false
+  // Product 角色在 waiting_input 状态时也可以确认执行
+  if (iter.role === 'product' && iter.status === 'waiting_input') {
+    return true
+  }
   return iter.status === 'completed' && iter.output && iter.output.trim().length > 0
 })
 
 // Product 角色特殊处理：不需要额外输入，直接使用冲刺需求
 const isProductRole = computed(() => currentIteration.value?.role === 'product')
+
+// 是否可以输入（角色处于可执行状态）
+const canInput = computed(() => {
+  const iter = currentIteration.value
+  if (!iter) return false
+  // 状态为 waiting_input/ready/pending 且有用户输入时可以执行
+  return ['waiting_input', 'ready', 'pending'].includes(iter.status) && 
+         iter.userInput && iter.userInput.trim().length > 0
+})
 
 // Tester 输出摘要（解析 bug 数量或环境问题）
 const testerSummary = computed(() => {
@@ -502,6 +760,9 @@ function setupSocketListeners() {
   store.socket.on('iteration:confirmed', ({ sprintId }) => {
     if (sprintId === props.sprintId) store.fetchSprint(props.sprintId)
   })
+  store.socket.on('iteration:completed', ({ sprintId }) => {
+    if (sprintId === props.sprintId) store.fetchSprint(props.sprintId)
+  })
   store.socket.on('iteration:execution:started', ({ sprintId }) => {
     if (sprintId === props.sprintId) store.fetchSprint(props.sprintId)
   })
@@ -558,7 +819,7 @@ function getInputPlaceholder() {
   const placeholders = {
     product: '这是冲刺的原始需求，确认后 Agent 将生成 PRD',
     architect: '输入对架构的特殊要求，例如：需要支持高并发...',
-    scout: '输入需要特别关注的可行性点...',
+    tech_coach: '输入需要特别关注的可行性点...',
     developer: '输入对开发的特殊要求...',
     tester: '输入对测试的特殊要求...',
     ops: '输入对部署的特殊要求...',
@@ -569,22 +830,34 @@ function getInputPlaceholder() {
 
 async function submitUserInput() {
   // Product 角色：使用冲刺需求作为输入
-  const input = isProductRole.value ? (sprint.value?.rawInput || '') : userInput.value
+  // 其他角色：使用上一角色的输出作为输入
+  const input = isProductRole.value 
+    ? (sprint.value?.rawInput || '') 
+    : (previousOutput.value || '')
   
   if (!input.trim()) return
-  if (!confirmModify.value && currentIteration.value?.userInput && !isProductRole.value) {
-    if (!confirm('已有输入，确定要覆盖吗？')) return
-  }
   
   await store.inputIteration(props.sprintId, selectedIterationIndex.value, input)
   await store.fetchSprint(props.sprintId)
   
-  await store.executeIteration(props.sprintId, selectedIterationIndex.value)
+  // 重置步骤索引，从第 0 步开始执行
+  currentStepIndex.value = 0
+  await store.executeIteration(props.sprintId, selectedIterationIndex.value, currentStepIndex.value)
+}
+
+async function saveEditedOutput() {
+  try {
+    await store.updateIterationOutput(props.sprintId, selectedIterationIndex.value, editedOutput.value)
+    alert('保存成功！')
+  } catch (e) {
+    console.error('保存失败:', e)
+    alert('保存失败: ' + e.message)
+  }
 }
 
 async function confirmOutput() {
   const currentIndex = selectedIterationIndex.value
-  const currentOutput = sprint.value?.iterations[currentIndex]?.output || ''
+  const currentOutput = editedOutput.value || sprint.value?.iterations[currentIndex]?.output || ''
   
   try {
     // 传递当前输出以实现双向同步
@@ -595,13 +868,19 @@ async function confirmOutput() {
     }
     await store.fetchSprint(props.sprintId)
     
-    // 自动选择下一个角色
+    // 自动选择下一个角色并执行
     const nextIndex = currentIndex + 1
     if (nextIndex < sprint.value?.iterations.length) {
       selectedIterationIndex.value = nextIndex
       
       const prevOutput = sprint.value?.iterations[currentIndex]?.output || ''
       userInput.value = prevOutput
+      
+      // 重置步骤索引，从第 0 步开始
+      currentStepIndex.value = 0
+      
+      // 自动执行下一角色
+      await store.executeIteration(props.sprintId, nextIndex, 0)
     }
   } catch (e) {
     console.error('确认输出失败:', e)
@@ -611,8 +890,8 @@ async function confirmOutput() {
 
 async function rerunIteration() {
   await store.rerunIteration(props.sprintId, selectedIterationIndex.value)
-  // 触发 Agent 重新执行
-  await store.executeIteration(props.sprintId, selectedIterationIndex.value)
+  // 触发 Agent 重新执行，使用当前步骤索引
+  await store.executeIteration(props.sprintId, selectedIterationIndex.value, currentStepIndex.value)
   // 刷新数据
   await store.fetchSprint(props.sprintId)
 }
@@ -651,6 +930,24 @@ async function copySprintId() {
   } catch (e) {
     console.error('复制失败:', e)
   }
+}
+
+async function saveEnvironmentUrl() {
+  if (!testEnvironmentUrl.value.trim()) {
+    alert('请输入环境地址')
+    return
+  }
+  try {
+    await store.updateEnvironment(props.sprintId, selectedIterationIndex.value, testEnvironmentUrl.value.trim())
+    alert('环境地址已保存')
+  } catch (e) {
+    console.error('保存环境地址失败:', e)
+    alert('保存失败: ' + e.message)
+  }
+}
+
+async function skipAndContinue() {
+  await confirmOutput()
 }
 
 function getIterationClass(index, iteration) {
@@ -764,17 +1061,19 @@ const outputFilesConfig = {
     { name: '路由决策', icon: '🚪', path: 'output/route-decision.md', category: 'doc' }
   ],
   product: [
-    { name: 'PRD 文档', icon: '📋', path: 'output/prd.md', category: 'doc' },
-    { name: '产品规格', icon: '📄', path: 'output/product-spec.md', category: 'doc' },
-    { name: '界面布局', icon: '🎨', path: 'output/ui-layout.md', category: 'doc' },
-    { name: '交互流程', icon: '🔀', path: 'output/user-journey.md', category: 'doc' },
-    { name: '用户故事', icon: '📝', path: 'output/user-stories.md', category: 'doc' }
+    { name: '用户画像', icon: '👤', path: 'product/user-personas.md', category: 'doc' },
+    { name: '用户故事', icon: '📝', path: 'product/user-stories.md', category: 'doc' },
+    { name: '功能清单', icon: '✅', path: 'product/functional-requirements.md', category: 'doc' },
+    { name: '界面布局', icon: '🎨', path: 'product/ui-layout.md', category: 'doc' },
+    { name: '交互流程', icon: '🔀', path: 'product/user-journey.md', category: 'doc' },
+    { name: 'PRD 文档', icon: '📋', path: 'product/prd.md', category: 'doc' }
   ],
   architect: [
-    { name: '架构设计', icon: '🏗️', path: 'output/openspec.md', category: 'doc' }
+    { name: 'OpenSpec', icon: '🏗️', path: 'architect/openspec.yaml', category: 'doc' },
+    { name: '架构图', icon: '📊', path: 'architect/architecture.md', category: 'doc' }
   ],
-  scout: [
-    { name: '风险评估', icon: '🔍', path: 'output/scout-report.md', category: 'doc' }
+  tech_coach: [
+    { name: '可行性报告', icon: '🔍', path: 'output/scout-report.md', category: 'doc' }
   ],
   developer: [
     { name: '开发摘要', icon: '📋', path: 'output/dev-summary.md', category: 'doc' },
@@ -784,17 +1083,25 @@ const outputFilesConfig = {
     { name: '后端代码', icon: '⚙️', path: 'developer/backend/', category: 'dir' }
   ],
   tester: [
-    { name: '测试报告', icon: '🧪', path: 'output/test-report.md', category: 'doc' },
-    { name: '安全报告', icon: '🔒', path: 'output/security-report.md', category: 'doc' }
+    { name: '测试用例', icon: '📝', path: 'tester/test-cases.md', category: 'doc' },
+    { name: '测试结果', icon: '📊', path: 'tester/test-results.md', category: 'doc' },
+    { name: '安全扫描', icon: '🔒', path: 'tester/security-scan.md', category: 'doc' },
+    { name: '测试报告', icon: '🧪', path: 'tester/test-report.md', category: 'doc' },
+    { name: '安全报告', icon: '🛡️', path: 'tester/security-report.md', category: 'doc' }
   ],
   ops: [
-    { name: '部署配置', icon: '⚙️', path: 'output/ops-config.md', category: 'doc' },
-    { name: 'Dockerfile', icon: '🐳', path: 'output/Dockerfile', category: 'config' },
-    { name: 'Docker Compose', icon: '📦', path: 'output/docker-compose.yml', category: 'config' },
-    { name: 'CI/CD', icon: '🔄', path: 'output/.github/workflows/deploy.yml', category: 'config' }
+    { name: '部署配置', icon: '⚙️', path: 'ops/ops-config.md', category: 'doc' },
+    { name: 'Dockerfile', icon: '🐳', path: 'ops/Dockerfile', category: 'config' },
+    { name: 'Docker Compose', icon: '📦', path: 'ops/docker-compose.yml', category: 'config' }
   ],
   ghost: [
-    { name: '安全审计', icon: '👻', path: 'output/security-report.md', category: 'doc' }
+    { name: '安全审计', icon: '👻', path: 'ghost/security-report.md', category: 'doc' }
+  ],
+  evolver: [
+    { name: '重构建议', icon: '🔄', path: 'evolver/evolver-report.md', category: 'doc' }
+  ],
+  creative: [
+    { name: '设计评审', icon: '🎨', path: 'creative/design-review.md', category: 'doc' }
   ],
   creative: [
     { name: '设计评审', icon: '🎨', path: 'output/design-review.md', category: 'doc' }
@@ -804,10 +1111,71 @@ const outputFilesConfig = {
   ]
 }
 
+// 实际存在的文件列表
+const existingFiles = ref([])
+
+// 加载实际文件列表
+async function loadExistingFiles() {
+  if (!props.sprintId) return
+  const files = await store.fetchSprintFiles(props.sprintId)
+  existingFiles.value = files
+}
+
 const currentOutputFiles = computed(() => {
   const role = currentIteration.value?.role
+  const iterationStatus = currentIteration.value?.status
   if (!role || !outputFilesConfig[role]) return []
-  return outputFilesConfig[role]
+  
+  // 如果正在执行，显示所有文件为 loading 状态
+  if (iterationStatus === 'running') {
+    return outputFilesConfig[role].map(f => ({
+      ...f,
+      exists: false,
+      loading: true
+    }))
+  }
+  
+  // 正常状态：根据实际存在返回
+  return outputFilesConfig[role].map(f => {
+    const exists = existingFiles.value.some(ef => ef.path === f.path)
+    return {
+      ...f,
+      exists,
+      loading: false
+    }
+  })
+})
+
+// 当 sprint 刷新时重新加载文件
+watch(() => sprint.value?.status, (newStatus) => {
+  if (newStatus === 'running') {
+    loadExistingFiles()
+  }
+})
+
+// 当切换迭代器时重新加载文件
+watch(() => selectedIterationIndex.value, () => {
+  loadExistingFiles()
+  // 加载 Tester 的环境地址
+  if (isTesterRole.value) {
+    testEnvironmentUrl.value = currentIteration.value?.testEnvironmentUrl || ''
+  }
+  // 加载上一角色的执行记录
+  loadExecutionLog()
+  // 重置步骤索引
+  currentStepIndex.value = 0
+  // 重置输出预览状态
+  showOutputPreview.value = false
+})
+
+// 当输出变化时更新可编辑文本框
+watch(() => currentIteration.value?.output, (newOutput) => {
+  editedOutput.value = newOutput || ''
+}, { immediate: true })
+
+// 初始加载
+onMounted(() => {
+  loadExistingFiles()
 })
 
 const workspaceBasePath = computed(() => {

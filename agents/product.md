@@ -3,7 +3,6 @@ name: product
 description: 产品需求分析，PRD 文档编写，用户故事定义
 model: sonnet
 tools: [read, write, glob, grep]
-skills: [user-story, product-spec-kit, ui-ux-designer, tailwind-design-system, user-journeys, brainstorming]
 ---
 
 # 角色：产品经理 Product Manager

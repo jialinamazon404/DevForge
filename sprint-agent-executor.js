@@ -48,6 +48,8 @@ function sendProgress(message) {
 }
 
 // Skill 路径映射
+// 注意：大 skill（>30KB）不注入 prompt，保持通过 opencode 按需加载
+// plan-eng-review: 56KB, ship: 80KB — 不注入
 const SKILL_PATHS = {
   brainstorming: '/Users/jialin.chen/.cache/opencode/node_modules/superpowers/skills/brainstorming/SKILL.md',
   'plan-eng-review': '/Users/jialin.chen/.claude/skills/gstack/plan-eng-review/SKILL.md',
@@ -57,29 +59,117 @@ const SKILL_PATHS = {
   ship: '/Users/jialin.chen/.claude/skills/gstack/ship/SKILL.md',
   cso: '/Users/jialin.chen/.claude/skills/gstack/cso/SKILL.md',
   'design-review': '/Users/jialin.chen/.claude/skills/gstack/design-review/SKILL.md',
-  retro: '/Users/jialin.chen/.claude/skills/gstack/retro/SKILL.md'
+  retro: '/Users/jialin.chen/.claude/skills/gstack/retro/SKILL.md',
+  // Product 步骤级 skills
+  'user-story': '/Users/jialin.chen/.agents/skills/user-story/SKILL.md',
+  'product-spec-kit': '/Users/jialin.chen/.agents/skills/product-spec-kit/SKILL.md',
+  'tailwind-design-system': '/Users/jialin.chen/.agents/skills/tailwind-design-system/SKILL.md',
+  'user-journeys': '/Users/jialin.chen/.agents/skills/user-journeys/SKILL.md',
+  // Architect 步骤级 skills
+  'system-design': '/Users/jialin.chen/.agents/skills/system-design/SKILL.md',
+  'database-design': '/Users/jialin.chen/.agents/skills/database-design/SKILL.md',
+  'api-design': '/Users/jialin.chen/.agents/skills/api-design-principles/SKILL.md',
+  'event-driven': '/Users/jialin.chen/.agents/skills/event-driven-architect/SKILL.md',
+  // Developer 步骤级 skills
+  'systematic-debugging': '/Users/jialin.chen/.agents/skills/systematic-debugging/SKILL.md',
+  'unit-test-generator': '/Users/jialin.chen/.agents/skills/unit-test-generator/SKILL.md',
+  'log-analyzer': '/Users/jialin.chen/.agents/skills/ln-514-test-log-analyzer/SKILL.md',
+  // Ops 步骤级 skills
+  'docker-helper': '/Users/jialin.chen/.agents/skills/docker-helper/SKILL.md',
+  'azure-deploy': '/Users/jialin.chen/.agents/skills/azure-deploy/SKILL.md'
 };
 
-// 角色与 Skill 映射
+// 角色与 Skill 映射（角色级默认 skill，用于 executeAgent 等非步骤级调用）
 const ROLE_SKILLS = {
   ba: 'brainstorming',
   product: 'brainstorming',
   architect: 'plan-eng-review',
+  tech_coach: 'office-hours',
   developer: 'test-driven-development',
   tester: 'qa',
-  ops: 'ship',
+  ops: 'docker-helper',
   evolver: 'retro',
   ghost: 'cso',
   creative: 'design-review'
 };
 
+// 大 skill 阈值（超过此大小不注入 prompt，避免上下文膨胀）
+const MAX_SKILL_INJECT_SIZE = 30000; // 30KB
+
+// 轻量级 QA 指令（替代 45.6KB 的 gstack qa skill）
+const QA_INSTRUCTION = `## QA 测试指南
+
+你有能力使用浏览器工具来测试 Web 应用。当用户要求测试一个 URL 时：
+
+### 测试流程
+1. 使用 Bash 工具打开浏览器：\`open "<url>"\` 或使用浏览工具
+2. 检查页面是否正确加载
+3. 测试核心功能（登录、表单提交、按钮点击等）
+4. 检查响应式布局（移动端适配）
+5. 检查控制台错误
+6. 记录所有发现的问题
+
+### 记录格式
+对每个发现的问题记录：
+- 问题描述
+- 复现步骤
+- 严重程度（Critical/High/Medium/Low）
+- 截图（如有）
+
+### 输出
+将测试结果保存到指定的测试报告文件中。`;
+
+// 角色 × 步骤 → Skill 精确映射（只加载当前步骤需要的 skill）
+// 格式: { role: [step0_skill, step1_skill, ...] }
+// null 表示该步骤不需要加载 skill
+// 注意：plan-eng-review (56KB) 和 ship (80KB) 太大，不注入 prompt
+const ROLE_STEP_SKILLS = {
+  product: [
+    'brainstorming',          // 步骤 1/5: 用户画像与核心需求 (10KB)
+    'user-story',             // 步骤 2/5: 用户故事拆解 (10KB)
+    'product-spec-kit',       // 步骤 3/5: 功能清单与验收标准 (3.8KB)
+    'tailwind-design-system', // 步骤 4/5: 界面布局与交互流程 (15KB)
+    null                      // 步骤 5/5: 汇总生成PRD（不需要 skill）
+  ],
+  architect: [
+    'system-design',          // 步骤 1/4: 系统架构设计 (1.3KB)
+    'api-design',             // 步骤 2/4: API 接口设计 (13KB)
+    'database-design',        // 步骤 3/4: 数据库模型设计 (1.6KB)
+    'system-design'           // 步骤 4/4: 生成 OpenSpec (1.3KB)
+  ],
+  developer: [
+    null,                     // 步骤 1/6: 项目结构搭建
+    null,                     // 步骤 2/6: 后端基础配置
+    'api-design',             // 步骤 3/6: 后端 API 实现 (13KB)
+    null,                     // 步骤 4/6: 前端基础配置
+    null,                     // 步骤 5/6: 前端页面实现
+    'test-driven-development' // 步骤 6/6: 生成开发文档+测试 (9.8KB)
+  ],
+  tester: [
+    null,                     // 步骤 1/4: 功能测试用例设计
+    null,                     // 步骤 2/4: 执行功能测试（使用 gstack /qa 命令）
+    null,                     // 步骤 3/4: 安全漏洞扫描（使用 gstack /qa 命令）
+    null                      // 步骤 4/4: 生成测试报告
+  ],
+  ops: [
+    'docker-helper',          // 步骤 1/4: 环境分析 (1KB)
+    'docker-helper',          // 步骤 2/4: Dockerfile 设计 (1KB)
+    'azure-deploy',           // 步骤 3/4: CI/CD 配置 (6KB)
+    'docker-helper'           // 步骤 4/4: 部署脚本 (1KB)
+  ],
+  tech_coach: [
+    null                      // 单步：整合产品+架构产出，输出技术实现文档
+  ]
+};
+
 // Agent 模型配置 - 使用实际可用的模型
 const AGENT_MODELS = {
   ba: 'opencode/big-pickle',
-  product: 'opencode/big-pickle',
-  architect: 'opencode/big-pickle',
-  developer: 'opencode/big-pickle',
-  tester: 'opencode/big-pickle',
+  product: 'opencode/qwen3.6-plus',
+  architect: 'opencode/qwen3.6-plus',
+  tech_coach: 'opencode/qwen3.6-plus',
+  developer: 'opencode/qwen3.6-plus',
+  tester: 'opencode/qwen3.6-plus',
   ops: 'opencode/gpt-5-nano',
   evolver: 'opencode/gpt-5-nano',
   ghost: 'opencode/big-pickle',
@@ -90,8 +180,9 @@ const AGENT_MODELS = {
 const TIMEOUT_CONFIG = {
   ba: 300000,         // 5分钟
   product: 300000,    // 5分钟
-  architect: 300000, // 5分钟
-  developer: 600000,  // 10分钟
+  architect: 300000,  // 5分钟
+  tech_coach: 300000, // 5分钟
+  developer: 600000,  // 10分钟 (8步拆分后每步)
   tester: 300000,     // 5分钟
   ops: 300000,        // 5分钟
   evolver: 300000     // 5分钟
@@ -103,11 +194,12 @@ const MAX_RETRIES = 2;
 // 角色图标和名称
 const ROLE_INFO = {
   ba: { icon: '📊', name: 'BA', name_en: 'Business Analyst' },
-  product: { icon: '📋', name: '产品', name_en: 'Product Manager' },
+  product: { icon: '📋', name: '产品经理', name_en: 'Product BA' },
   architect: { icon: '🏗️', name: '架构师', name_en: 'Architect' },
+  tech_coach: { icon: '🔍', name: '开发教练', name_en: 'Tech Coach' },
   developer: { icon: '💻', name: '开发者', name_en: 'Developer' },
-  tester: { icon: '🧪', name: 'QA', name_en: 'QA Engineer' },
-  ops: { icon: '🚀', name: 'SRE', name_en: 'Site Reliability Engineer' },
+  tester: { icon: '🧪', name: '测试工程师', name_en: 'QA Engineer' },
+  ops: { icon: '⚙️', name: '运维工程师', name_en: 'DevOps' },
   evolver: { icon: '🔄', name: '进化顾问', name_en: 'Evolver' },
   ghost: { icon: '👻', name: '幽灵', name_en: 'Security Ghost' },
   creative: { icon: '🎨', name: '创意', name_en: 'Creative Director' }
@@ -191,6 +283,105 @@ async function saveOutput(pipelineId, role, output) {
 }
 
 /**
+ * 保存角色执行记录到 execution-log 目录
+ */
+async function saveExecutionLog(pipelineId, role, context) {
+  const logDir = path.join(WORKSPACE, pipelineId, 'execution-log');
+  await fs.mkdir(logDir, { recursive: true });
+  
+  const roleIndex = context.roleIndex || 0;
+  const paddedIndex = String(roleIndex + 1).padStart(2, '0');
+  const logFile = path.join(logDir, `${paddedIndex}-${role}.json`);
+  
+  // 获取角色定义中的 skill 名称
+  const roleSkillMap = {
+    'product': 'brainstorming (需求分析)',
+    'architect': 'plan-eng-review (架构评审)',
+    'developer': 'test-driven-development (TDD)',
+    'tester': 'qa (QA测试)',
+    'tech_coach': 'office-hours (可行性分析)',
+    'ops': 'ship (部署)',
+    'evolver': 'refactoring (重构优化)',
+    'ghost': 'cso (安全审计)',
+    'creative': 'design-review (设计评审)'
+  };
+  
+  // 获取步骤定义
+  const steps = context.steps || [];
+  
+  // 计算耗时
+  const startedAt = context.startedAt || new Date().toISOString();
+  const completedAt = new Date().toISOString();
+  const durationMs = new Date(completedAt) - new Date(startedAt);
+  const durationSeconds = Math.floor(durationMs / 1000);
+  const durationText = durationSeconds >= 60 
+    ? `${Math.floor(durationSeconds / 60)}分${durationSeconds % 60}秒`
+    : `${durationSeconds}秒`;
+  
+  // 扫描产出文件
+  const roleDir = path.join(WORKSPACE, pipelineId, role);
+  let outputFiles = [];
+  try {
+    const files = await fs.readdir(roleDir);
+    for (const file of files) {
+      const filePath = path.join(roleDir, file);
+      const stat = await fs.stat(filePath);
+      if (stat.isFile() && !file.startsWith('.')) {
+        outputFiles.push({
+          name: file,
+          path: `${role}/${file}`
+        });
+      }
+    }
+  } catch (e) {
+    // 目录不存在
+  }
+  
+  // 同时扫描 output 目录
+  const outputDir = path.join(WORKSPACE, pipelineId, 'output');
+  try {
+    const files = await fs.readdir(outputDir);
+    for (const file of files) {
+      const filePath = path.join(outputDir, file);
+      const stat = await fs.stat(filePath);
+      if (stat.isFile()) {
+        outputFiles.push({
+          name: file,
+          path: `output/${file}`
+        });
+      }
+    }
+  } catch (e) {
+    // 目录不存在
+  }
+  
+  const logData = {
+    role,
+    roleIndex,
+    skill: roleSkillMap[role] || 'unknown',
+    startedAt,
+    completedAt,
+    duration: durationText,
+    durationMs,
+    steps: steps.map((s, i) => ({
+      id: i + 1,
+      name: s.name || `步骤 ${i + 1}`,
+      prompt: s.prompt || ''
+    })),
+    outputFiles,
+    outputPreview: (context.output || '').slice(0, 500),
+    summary: context.summary || '',
+    rawInput: context.rawInput?.slice(0, 200) || '',
+    testEnvironmentUrl: context.testEnvironmentUrl || null
+  };
+  
+  await fs.writeFile(logFile, JSON.stringify(logData, null, 2), 'utf-8');
+  console.log(`   📋 执行记录已保存: ${paddedIndex}-${role}.json`);
+  
+  return logFile;
+}
+
+/**
  * 清理僵尸 opencode 进程（状态为 T 的已停止进程）
  * 防止之前超时被 kill 的进程影响新任务
  */
@@ -208,7 +399,7 @@ function cleanupZombieProcesses() {
  * 执行 OpenCode 并获取输出（带超时和重试）
  */
 async function runOpenCode(prompt, options = {}) {
-  const { model = 'opencode/big-pickle', agentName = 'developer', retryCount = 0 } = options;
+  const { model = 'opencode/big-pickle', agentName = 'developer', retryCount = 0, skillName = null, usePure = true, qaInstruction = null } = options;
   
   // 清理僵尸进程
   cleanupZombieProcesses();
@@ -216,13 +407,33 @@ async function runOpenCode(prompt, options = {}) {
   // 获取对应角色的超时配置
   const timeout = TIMEOUT_CONFIG[agentName] || 180000;
   
+  // 如果指定了 qaInstruction（轻量级 QA 指令），注入到 prompt
+  let finalPrompt = prompt;
+  if (qaInstruction) {
+    finalPrompt = `${qaInstruction}\n\n---\n\n${prompt}`;
+    console.log(`   📦 注入 QA 指令 (${(qaInstruction.length / 1024).toFixed(1)}KB)`);
+  } else if (skillName) {
+    // 如果指定了 skillName，加载其内容并注入到 prompt 中
+    // 超过阈值的 skill 不注入（避免上下文膨胀），交给 opencode 按需加载
+    const skillContent = await loadSkill(skillName);
+    if (skillContent) {
+      if (skillContent.length > MAX_SKILL_INJECT_SIZE) {
+        console.log(`   ⏭️ Skill ${skillName} 过大 (${(skillContent.length / 1024).toFixed(1)}KB)，跳过注入`);
+      } else {
+        finalPrompt = `## Skill 参考: ${skillName}\n\n${skillContent}\n\n---\n\n${prompt}`;
+        console.log(`   📦 注入 Skill: ${skillName} (${(skillContent.length / 1024).toFixed(1)}KB)`);
+      }
+    }
+  }
+  
   return new Promise((resolve, reject) => {
     // 创建临时文件存储 prompt
     const tmpFile = `/tmp/opencode-prompt-${Date.now()}.txt`;
     
-    fs.writeFile(tmpFile, prompt, 'utf-8').then(() => {
-      // 使用 OpenCode run 命令
-      const cmd = `opencode run --format json --model "${model}" --dir "${ROOT}"`;
+    fs.writeFile(tmpFile, finalPrompt, 'utf-8').then(() => {
+      // Tester 角色需要 gstack 插件，不使用 --pure
+      const pureFlag = usePure ? '--pure' : '';
+      const cmd = `opencode run --format json ${pureFlag} --model "${model}" --dir "${ROOT}"`;
       
       console.log(`   🚀 启动 OpenCode: ${model}`);
       sendProgress(`正在调用 AI 模型: ${model}...`);
@@ -376,9 +587,10 @@ function extractDeveloperDocs(text) {
  * 生成 Product Agent 的提示词 - 直接生成 PRD，不提问
  */
 function generateProductPrompt(context) {
-  const { pipelineId, rawInput, workspacePath } = context;
+  const { pipelineId, rawInput, workspacePath, stepIndex } = context;
   
-  return `# 角色：产品经理 (Product Manager)
+  const stepPrompts = [
+    `# 角色：产品经理 - 步骤 1/5: 用户画像与核心需求
 
 ## 用户需求
 ${rawInput}
@@ -387,10 +599,92 @@ ${rawInput}
 ${workspacePath || `workspace/${pipelineId}`}
 
 ## 你的任务
-**直接分析需求并生成完整的 PRD 文档**，不要向用户提问。
+分析目标用户群体，识别核心需求和痛点。
 
 ## 输出要求
+生成用户画像文档，包含：
+- 目标用户群体描述
+- 用户痛点
+- 核心需求
+- 用户场景
 
+## 输出文件
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/product/user-personas.md\`
+`,
+    `# 角色：产品经理 - 步骤 2/5: 用户故事拆解
+
+## 用户需求
+${rawInput}
+
+## 工作目录
+${workspacePath || `workspace/${pipelineId}`}
+
+## 你的任务
+基于用户画像拆解用户故事。
+
+## 输出要求
+生成用户故事文档，包含：
+- 用户故事（As a, I want, so that）
+- 优先级（HIGH/MEDIUM/LOW）
+- 验收标准（Given-When-Then 格式）
+
+## 输出文件
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/product/user-stories.md\`
+`,
+    `# 角色：产品经理 - 步骤 3/5: 功能清单与验收标准
+
+## 用户需求
+${rawInput}
+
+## 工作目录
+${workspacePath || `workspace/${pipelineId}`}
+
+## 你的任务
+定义功能清单和验收标准。
+
+## 输出要求
+生成功能需求文档，包含：
+- 功能清单（功能名称、描述、优先级）
+- 功能依赖关系
+- 验收标准
+
+## 输出文件
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/product/functional-requirements.md\`
+`,
+    `# 角色：产品经理 - 步骤 4/5: 界面布局与交互流程
+
+## 用户需求
+${rawInput}
+
+## 工作目录
+${workspacePath || `workspace/${pipelineId}`}
+
+## 你的任务
+设计页面布局和用户交互流程。
+
+## 输出要求
+生成界面设计文档，包含：
+- 页面结构
+- 导航结构
+- 核心页面布局
+- 用户交互流程
+
+## 输出文件
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/product/ui-layout.md\`
+和: \`${workspacePath || `workspace/${pipelineId}`}/product/user-journey.md\`
+`,
+    `# 角色：产品经理 - 步骤 5/5: 汇总生成PRD
+
+## 用户需求
+${rawInput}
+
+## 工作目录
+${workspacePath || `workspace/${pipelineId}`}
+
+## 你的任务
+整合所有产出，生成完整的PRD文档。
+
+## 输出要求
 生成 JSON 格式的 PRD，必须包含以下结构：
 
 \`\`\`json
@@ -401,326 +695,430 @@ ${workspacePath || `workspace/${pipelineId}`}
     "productType": "web-app|web-api|cli|工具类",
     "targetPlatform": "目标平台描述"
   },
-  "userPersonas": [
-    {
-      "id": "UP-001",
-      "name": "用户群体名称",
-      "age": "年龄范围",
-      "description": "用户描述",
-      "painPoints": ["痛点1", "痛点2"],
-      "needs": "用户需求"
-    }
-  ],
-  "userStories": [
-    {
-      "id": "US-001",
-      "asA": "作为...",
-      "iWant": "我想要...",
-      "soThat": "以便...",
-      "priority": "HIGH|MEDIUM|LOW",
-      "acceptanceCriteria": ["Given... When... Then..."]
-    }
-  ],
-  "functionalRequirements": [
-    {
-      "id": "FR-001",
-      "name": "功能名称",
-      "description": "功能描述",
-      "priority": "HIGH|MEDIUM|LOW",
-      "dependencies": [],
-      "acceptanceCriteria": ["验收标准1", "验收标准2"]
-    }
-  ],
-  "nonFunctionalRequirements": [
-    {
-      "id": "NFR-001",
-      "name": "性能",
-      "description": "性能要求描述"
-    }
-  ],
-  "milestones": [
-    {
-      "id": "M1",
-      "name": "里程碑名称",
-      "description": "完成内容",
-      "estimatedDuration": "预计工期"
-    }
-  ]
+  "userPersonas": [],
+  "userStories": [],
+  "functionalRequirements": [],
+  "nonFunctionalRequirements": [],
+  "milestones": []
 }
 \`\`\`
 
 ## 输出文件
-保存为 JSON 到: ${workspacePath || `workspace/${pipelineId}`}/product/prd.json
+保存为 JSON 到: \`${workspacePath || `workspace/${pipelineId}`}/product/prd.json\`
+同时生成 Markdown 版本到: \`${workspacePath || `workspace/${pipelineId}`}/product/prd.md\`
+`
+  ];
 
-同时生成 Markdown 版本到: ${workspacePath || `workspace/${pipelineId}`}/product/prd.md
+  // 如果指定了 stepIndex，返回对应步骤的 prompt
+  if (stepIndex !== null && stepIndex >= 0 && stepIndex < stepPrompts.length) {
+    return stepPrompts[stepIndex];
+  }
 
-## 重要提醒
-- 直接分析和生成，不要提问
-- 用户故事要具体、可测试
-- 验收标准使用 Given-When-Then 格式
-- 必须生成真实的内容，不是模板
-`;
+  // 默认返回完整 prompt（第5步，即生成完整 PRD）
+  return stepPrompts[4];
+}
+
+/**
+ * 获取步骤指导
+ */
+function getStepGuidance(role, stepIndex) {
+  const steps = {
+    product: [
+      '## 步骤 1/5: 用户画像与核心需求\n分析目标用户群体，识别核心需求和痛点。输出到 product/user-personas.md',
+      '## 步骤 2/5: 用户故事拆解\n基于用户画像拆解用户故事。输出到 product/user-stories.md',
+      '## 步骤 3/5: 功能清单与验收标准\n定义功能清单和验收标准。输出到 product/functional-requirements.md',
+      '## 步骤 4/5: 界面布局与交互流程\n设计页面布局和用户交互流程。输出到 product/ui-layout.md, product/user-journey.md',
+      '## 步骤 5/5: 汇总生成PRD\n整合所有产出，生成完整的PRD文档。输出到 product/prd.json, product/prd.md'
+    ],
+    architect: [
+      '## 步骤 1/4: 系统架构设计\n专注于设计系统架构图、技术栈选型、组件划分。输出到 output/architect-step1.md',
+      '## 步骤 2/4: API 接口设计\n基于架构设计 RESTful API 规范。输出到 output/architect-step2.md',
+      '## 步骤 3/4: 数据库模型设计\n设计数据库表结构和关系。输出到 output/architect-step3.md',
+      '## 步骤 4/4: 生成 OpenSpec\n整合前几步，生成完整的 openspec.yaml'
+    ],
+    developer: [
+      '## 步骤 1/6: 项目结构搭建\n根据技术文档创建项目目录结构、初始化 Git。输出到 developer/',
+      '## 步骤 2/6: 后端基础配置\n创建后端 package.json、安装依赖、配置数据库和中间件。输出到 developer/backend/',
+      '## 步骤 3/6: 后端 API 实现\n根据技术文档 API 清单实现所有后端接口。输出到 developer/backend/',
+      '## 步骤 4/6: 前端基础配置\n创建前端项目、安装依赖、配置路由和状态管理。输出到 developer/frontend/',
+      '## 步骤 5/6: 前端页面实现\n根据产品界面布局实现所有前端页面。输出到 developer/frontend/',
+      '## 步骤 6/6: 生成开发文档\n生成 README.md、API.md、项目说明。输出到 developer/README.md, developer/API.md, developer/dev-summary.md'
+    ],
+    tester: [
+      '## 步骤 1/4: 功能测试用例设计\n基于 PRD 和 OpenSpec 设计功能测试用例。输出到 tester/test-cases.md',
+      '## 步骤 2/4: 执行功能测试\n执行功能测试并记录测试结果。输出到 tester/test-results.md',
+      '## 步骤 3/4: 安全漏洞扫描\n进行安全漏洞扫描，检查接口安全。输出到 tester/security-scan.md',
+      '## 步骤 4/4: 生成测试报告\n汇总所有测试结果，生成最终测试报告。输出到 tester/test-report.md, tester/security-report.md'
+    ],
+    tech_coach: [
+      '## 技术实现文档生成\n整合产品和架构产出，输出前后端技术实现文档。输出到 tech-coach/tech-implementation.md, output/user-stories.md, output/tech-feasibility.md'
+    ]
+  };
+  
+  return steps[role]?.[stepIndex] || '';
 }
 
 /**
  * 生成 Architect Agent 的提示词 - 直接选择方案并生成架构，不提问
  */
 function generateArchitectPrompt(context) {
-  const { pipelineId, rawInput, workspacePath, prd } = context;
+  const { pipelineId, rawInput, workspacePath, prd, stepIndex } = context;
   
-  let prdContext = '';
-  if (prd) {
-    prdContext = `
-## PRD 文档（产品经理产出）
-${typeof prd === 'string' ? prd : JSON.stringify(prd, null, 2)}
-`;
-  }
-  
-  return `# 角色：架构师 (System Architect)
+  const stepPrompts = [
+    `# 角色：架构师 - 步骤 1/4：系统架构设计
 
 ## 用户原始需求
 ${rawInput}
-${prdContext}
 
 ## 工作目录
 ${workspacePath || `workspace/${pipelineId}`}
 
 ## 你的任务
-**直接选择一个技术方案并生成完整的架构设计文档**，不要向用户提问选择哪个方案。
-
-## 技术选型决策规则
-根据需求复杂度自动选择最合适的方案：
-
-- **简单需求**（工具类、个人项目、原型验证、无复杂后端需求）：
-  - 技术栈：原生 HTML + CSS + JavaScript
-  - 部署：静态文件托管（GitHub Pages / Vercel / Netlify）
-  - 特点：零依赖、快速开发
-  
-- **标准需求**（中小型项目、需要后端、有限的用户量）：
-  - 技术栈：Vue 3 + Vite (前端) + Express.js (后端) + SQLite/PostgreSQL
-  - 部署：Vercel + Railway / Render
-  - 特点：全栈统一、生态完善
-  
-- **复杂需求**（企业级、大用户量、微服务架构）：
-  - 技术栈：React + TypeScript + Spring Boot + MySQL + Redis
-  - 部署：Kubernetes + AWS
-  - 特点：高并发、企业级安全
+设计系统架构，包含组件划分和技术栈选型。
 
 ## 输出要求
+1. 系统架构图（使用 Mermaid）
+2. 技术选型及理由
+3. 组件列表和职责
+4. 数据流设计
 
-生成完整的架构文档，必须包含：
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/output/architect-step1.md\`
+`,
+    `# 角色：架构师 - 步骤 2/4：API 接口设计
 
-### 1. 系统架构图（使用 Mermaid）
-\`\`\`mermaid
-graph TD
-    A[用户] --> B[前端]
-    B --> C[API]
-    C --> D[业务逻辑]
-    D --> E[(数据库)]
-\`\`\`
+## 用户原始需求
+${rawInput}
 
-### 2. 技术选型（明确选定的方案）
-- 选定方案名称和版本
-- 每个组件的技术选型理由
-- 优点和潜在风险
+## 工作目录
+${workspacePath || `workspace/${pipelineId}`}
 
-### 3. 组件设计
-- 核心组件列表
-- 每个组件的职责
-- 组件间的接口
+## 你的任务
+基于架构设计，设计 RESTful API 接口规范。
 
-### 4. API 设计
-每个 API 端点包含：
-- HTTP 方法和路径
-- 请求参数和类型
-- 响应格式
-- 错误码定义
+## 输出要求
+1. API 端点列表（方法、路径、描述）
+2. 请求参数和响应格式
+3. 错误码定义
 
-### 5. 数据模型
-- 实体定义
-- 字段类型和约束
-- 关系（1:1, 1:N, N:M）
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/output/architect-step2.md\`
+`,
+    `# 角色：架构师 - 步骤 3/4：数据库模型设计
 
-### 6. 目录结构
-\`\`\`
-项目/
-├── src/
-│   ├── components/
-│   ├── pages/
-│   ├── api/
-│   └── utils/
-├── tests/
-└── package.json
-\`\`\`
+## 用户原始需求
+${rawInput}
 
-## 输出格式
+## 工作目录
+${workspacePath || `workspace/${pipelineId}`}
 
+## 你的任务
+设计数据库表结构和关系。
+
+## 输出要求
+1. 实体定义
+2. 字段类型和约束
+3. 表关系（1:1, 1:N, N:M）
+
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/output/architect-step3.md\`
+`,
+    `# 角色：架构师 - 步骤 4/4：生成 OpenSpec
+
+## 用户原始需求
+${rawInput}
+
+## PRD 文档
+${prd || '无'}
+
+## 工作目录
+${workspacePath || `workspace/${pipelineId}`}
+
+## 你的任务
+整合前几步的设计，生成完整的 OpenSpec 架构文档。
+
+## 技术选型决策规则
+根据需求复杂度自动选择最合适的方案。
+
+## 输出要求
 1. 保存为 YAML 格式到: ${workspacePath || `workspace/${pipelineId}`}/architect/openspec.yaml
 2. 保存架构图到: ${workspacePath || `workspace/${pipelineId}`}/architect/architecture.md
-3. 输出完整的架构设计文档
+`
+  ];
 
-## 重要提醒
-- 直接选择最合适的方案并生成设计，不要询问用户
-- 架构图要清晰展示数据流和组件关系
-- 必须生成真实的内容，不是模板
-`;
+  // 如果指定了 stepIndex，返回对应步骤的 prompt
+  if (stepIndex !== null && stepIndex >= 0 && stepIndex < stepPrompts.length) {
+    return stepPrompts[stepIndex];
+  }
+  
+  // 默认返回完整 prompt（第4步）
+  return stepPrompts[3];
 }
 
 /**
  * 生成 Scout Agent 的提示词
  */
-function generateScoutPrompt(context) {
-  const { pipelineId, rawInput, workspacePath } = context;
+/**
+ * 生成 Tech Coach Agent 的提示词
+ * 作用：整合产品和架构的产出，输出技术实现文档（分前后端），减少开发者思考负担
+ */
+function generateTechCoachPrompt(context) {
+  const { pipelineId, rawInput, workspacePath, prdOutput, openspec } = context;
   
-  return `# 角色：侦察兵 (Scout)
+  const prdContext = prdOutput ? `\n## 产品产出（PRD）\n${prdOutput.slice(0, 3000)}` : '';
+  const specContext = openspec ? `\n## 架构产出（OpenSpec）\n${openspec.slice(0, 3000)}` : '';
+  
+  return `# 角色：开发教练 (Tech Coach)
 
-## 用户需求
+## 原始需求
 ${rawInput}
+${prdContext}
+${specContext}
 
 ## 工作目录
 ${workspacePath || `workspace/${pipelineId}`}
 
 ## 你的任务
+你是产品和架构之间的桥梁。你的目标是将产品的"用户语言"和架构的"架构语言"翻译成开发者的"代码语言"，让开发者拿到的是"可直接开工"的完整规格。
 
-1. **理解技术要求** - 分析 OpenSpec 中的技术栈需求
-2. **探索代码库** - 检查 workspace 中是否有可复用的代码
-3. **分析依赖** - 识别需要新增的依赖包
-4. **验证可行性** - 确认技术选型是否可行
-5. **识别风险** - 发现潜在的技术风险
+### 1. 整合产品产出
+- 从 PRD 中提取功能需求
+- 从功能清单中映射到技术实现
+- 从界面布局中关联前端组件设计
+- 从用户故事中转化为开发任务
+
+### 2. 整合架构产出
+- 从 OpenSpec 中确认技术选型
+- 从 API 接口设计中补充遗漏接口
+- 从数据库模型中补充表设计建议
+
+### 3. 输出技术实现文档
+生成前后端分离的技术实现文档，包含：
+
+#### 前端实现
+- 组件结构（对应产品界面布局）
+- 页面路由规划
+- 状态管理方案
+- API 调用封装
+
+#### 后端实现
+- API 实现清单（对应架构 API 设计 + 补充）
+- 数据库实现（对应架构数据模型 + 补充）
+- 业务逻辑说明
+- 认证/权限设计
+
+#### 技术可行性分析
+- 风险点识别
+- 实现难点评估
+
+#### 开发任务拆解
+- 对应产品用户故事 → 开发任务
+- 优先级排序
 
 ## 输出要求
-
-生成侦察报告，包含：
-
-1. **发现列表** - 代码复用机会、技术债等
-2. **相似实现参考** - 找到的类似实现
-3. **依赖分析** - 现有依赖 vs 需要新增
-4. **可行性评估** - 技术难度评估
-5. **风险识别** - 主要风险点和缓解措施
-6. **建议** - 具体的实施建议
-
-## 输出格式
-
-保存为 Markdown 到: ${workspacePath || `workspace/${pipelineId}`}/scout/scout-report.md
+生成以下文件（必须完整）：
+- \`${workspacePath || `workspace/${pipelineId}`}/tech-coach/tech-implementation.md\` - 技术实现文档（前后端分离）
+- \`${workspacePath || `workspace/${pipelineId}`}/output/user-stories.md\` - 开发用用户故事
+- \`${workspacePath || `workspace/${pipelineId}`}/output/tech-feasibility.md\` - 技术可行性分析
 `;
 }
 
 /**
- * 生成 Developer Agent 的提示词 - 必须生成开发文档和API接口文档
+ * 生成 Developer Agent 的提示词 - 根据 tech_coach 产出动态生成步骤
  */
 function generateDeveloperPrompt(context) {
-  const { pipelineId, rawInput, workspacePath, openspec } = context;
+  const { pipelineId, rawInput, workspacePath, openspec, techCoachOutput, stepIndex } = context;
   
   let specContext = '';
   if (openspec) {
     specContext = `
 ## OpenSpec（架构师产出）
-${typeof openspec === 'string' ? openspec : JSON.stringify(openspec, null, 2)}
+${typeof openspec === 'string' ? openspec.slice(0, 5000) : JSON.stringify(openspec, null, 2).slice(0, 5000)}
 `;
   }
   
-  return `# 角色：开发者 (Software Developer)
+  let techContext = '';
+  if (techCoachOutput) {
+    techContext = `
+## 技术实现文档（开发教练产出）
+${typeof techCoachOutput === 'string' ? techCoachOutput.slice(0, 5000) : JSON.stringify(techCoachOutput, null, 2).slice(0, 5000)}
+`;
+  }
+  
+  const stepPrompts = [
+    `# 角色：开发者 - 步骤 1/6：项目结构搭建
 
 ## 用户需求
 ${rawInput}
 ${specContext}
+${techContext}
 
 ## 工作目录
 ${workspacePath || `workspace/${pipelineId}`}/developer
 
 ## 你的任务
+根据技术实现文档和 OpenSpec，创建项目目录结构：
+1. 分析技术栈选型（前端框架、后端框架、数据库等）
+2. 创建对应的项目目录结构
+3. 初始化 Git 仓库
+4. 创建基础配置文件
 
-1. **创建项目结构** - 按照 OpenSpec 创建合理的目录结构
-2. **实现核心功能** - 根据功能清单实现代码
-3. **编写测试** - 使用 TDD 方式编写单元测试
-4. **生成开发文档** - 必须包含 README.md 和 API 接口文档
+## 输出要求
+- 创建 developer/ 目录结构（前后端分离或单体，根据技术文档决定）
+- package.json（前端+后端，根据技术栈决定）
+- .gitignore
+- 基础配置文件（数据库配置、环境变量等）
 
-## 必须生成的文档（重要）
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/developer/\`
+`,
+    `# 角色：开发者 - 步骤 2/6：后端基础配置
 
-### 1. README.md（开发文档）
-必须包含以下所有章节：
+## 用户需求
+${rawInput}
+${specContext}
+${techContext}
 
-\`\`\`markdown
-# 项目名称
+## 工作目录
+${workspacePath || `workspace/${pipelineId}`}/developer
 
-## 📋 项目概述
-- 项目名称
-- 功能简介
-- 技术栈
+## 你的任务
+根据技术实现文档的后端部分，配置后端基础：
+1. 创建后端 package.json，安装所需依赖
+2. 创建后端入口文件
+3. 配置数据库连接
+4. 配置基础中间件（CORS、body-parser、日志等）
+5. 配置认证基础（JWT/Session）
 
-## 🚀 快速启动
-\`\`\`bash
-# 安装依赖
-npm install
+## 输出要求
+- 后端 package.json 和依赖
+- 后端入口文件
+- 数据库连接配置
+- 基础中间件配置
+- 认证基础配置
 
-# 启动开发服务器
-npm run dev
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/developer/backend/\`
+`,
+    `# 角色：开发者 - 步骤 3/6：后端 API 实现
 
-# 生产构建
-npm run build
-\`\`\`
+## 用户需求
+${rawInput}
+${specContext}
+${techContext}
 
-## 📡 API 接口文档
-| 方法 | 路径 | 描述 | 请求参数 | 响应格式 |
-|------|------|------|----------|----------|
-| GET | /api/users | 获取用户列表 | page, limit | {data: [], total: 0} |
-| POST | /api/users | 创建用户 | {name, email} | {id, name, email} |
+## 工作目录
+${workspacePath || `workspace/${pipelineId}`}/developer
 
-## 📁 项目结构
-\`\`\`
-src/
-├── components/    # 组件
-├── pages/         # 页面
-├── api/           # API 请求
-└── utils/         # 工具函数
-\`\`\`
+## 你的任务
+根据技术实现文档的后端 API 清单和 OpenSpec 中的 API 设计，实现所有后端接口：
+1. 实现所有业务 API 路由
+2. 实现控制器逻辑
+3. 实现数据模型
+4. 实现认证和权限控制
+5. 实现错误处理和验证
 
-## ⚙️ 环境变量
-\`\`\`
-DATABASE_URL=...
-API_KEY=...
-\`\`\`
+## 输出要求
+- 所有 API 路由文件
+- 所有控制器文件
+- 所有数据模型文件
+- 中间件（认证、验证、错误处理）
 
-## 📝 开发记录
-- 开发的日期和时间
-- 完成的功能清单
-- 遇到的问题和解决方案
-\`\`\`
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/developer/backend/\`
+`,
+    `# 角色：开发者 - 步骤 4/6：前端基础配置
 
-### 2. API.md（详细的接口文档）
-如果项目有后端 API，必须生成详细的 API 文档，包含：
-- 每个端点的详细说明
-- 请求参数详情
-- 响应示例
-- 错误码说明
+## 用户需求
+${rawInput}
+${specContext}
+${techContext}
 
-### 3. 源代码
-- 实现 OpenSpec 中定义的所有功能
-- 确保代码可运行、可测试
-- 遵循选择的技術栈方案
-- 不要使用占位符或 TODO 注释
+## 工作目录
+${workspacePath || `workspace/${pipelineId}`}/developer
 
-## 输出格式
+## 你的任务
+根据技术实现文档的前端部分，配置前端基础：
+1. 创建前端项目结构
+2. 安装所需依赖（UI 框架、路由、状态管理等）
+3. 配置路由（根据页面路由规划）
+4. 配置状态管理
+5. 配置 API 请求封装
+6. 创建基础布局组件
 
-将所有代码和文档保存到: ${workspacePath || `workspace/${pipelineId}`}/developer/
-  - README.md（必须）
-  - API.md（如果有 API）
-  - src/（源代码）
+## 输出要求
+- 前端 package.json 和依赖
+- 路由配置
+- 状态管理配置
+- API 请求封装
+- 基础布局组件
 
-## 重要提醒
-- README.md 必须完整包含所有章节，不能省略
-- API 接口文档必须详细列出每个接口
-- 必须生成真实可运行的代码，不是伪代码
-`;
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/developer/frontend/\`
+`,
+    `# 角色：开发者 - 步骤 5/6：前端页面实现
+
+## 用户需求
+${rawInput}
+${specContext}
+${techContext}
+
+## 工作目录
+${workspacePath || `workspace/${pipelineId}`}/developer
+
+## 你的任务
+根据技术实现文档的前端组件结构和产品界面布局，实现所有前端页面：
+1. 实现所有页面组件
+2. 实现业务组件
+3. 实现表单和验证
+4. 对接后端 API
+5. 实现响应式布局
+
+## 输出要求
+- 所有页面组件
+- 业务组件
+- 表单和验证组件
+- API 调用逻辑
+- 响应式样式
+
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/developer/frontend/\`
+`,
+    `# 角色：开发者 - 步骤 6/6：生成开发文档
+
+## 用户需求
+${rawInput}
+${specContext}
+${techContext}
+
+## 工作目录
+${workspacePath || `workspace/${pipelineId}`}/developer
+
+## 你的任务
+生成完整的开发文档：
+1. README.md - 项目说明文档（安装、运行、部署）
+2. API.md - API 接口文档（所有接口说明）
+
+## 输出要求
+生成以下文件（必须完整）：
+- developer/README.md - 项目说明
+- developer/API.md - 接口文档
+- developer/dev-summary.md - 开发摘要
+
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/developer/\`
+`
+  ];
+
+  // 如果指定了 stepIndex，返回对应步骤的 prompt
+  if (stepIndex !== null && stepIndex >= 0 && stepIndex < stepPrompts.length) {
+    return stepPrompts[stepIndex];
+  }
+
+  // 默认返回完整 prompt（第6步）
+  return stepPrompts[5];
 }
 
 /**
  * 生成 Tester Agent 的提示词
  */
 function generateTesterPrompt(context) {
-  const { pipelineId, rawInput, workspacePath } = context;
+  const { pipelineId, rawInput, workspacePath, stepIndex, testEnvironmentUrl } = context;
+  const hasEnvironment = !!testEnvironmentUrl;
   
-  return `# 角色：测试工程师 (QA Tester)
+  const stepPrompts = [
+    `# 角色：测试工程师 - 步骤 1/4：功能测试用例设计
 
 ## 用户需求
 ${rawInput}
@@ -729,55 +1127,149 @@ ${rawInput}
 ${workspacePath || `workspace/${pipelineId}`}/developer
 
 ## 你的任务
-
-1. **阅读代码** - 理解开发者产出的代码
-2. **设计测试用例** - 基于功能需求设计测试用例
-3. **执行测试** - 运行测试并记录结果
-4. **报告 Bug** - 发现的问题要详细记录
-
-## 环境说明
-
-如果后端服务需要特定环境才能启动（如数据库依赖、端口占用等），
-可以先进行代码审查和静态分析，在报告中说明：
-- "无法启动后端服务（缺少环境），进行静态代码审查"
-- 列出代码中发现的问题
+基于 PRD 和 OpenSpec 设计功能测试用例。
 
 ## 输出要求
+1. 测试用例列表
+2. 测试覆盖范围
+3. 测试数据准备
 
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/tester/test-cases.md\`
+`,
+    `# 角色：测试工程师 - 步骤 2/4：${hasEnvironment ? '执行功能测试' : '静态代码审查'}
+
+## 用户需求
+${rawInput}
+
+## 代码位置
+${workspacePath || `workspace/${pipelineId}`}/developer
+
+## 你的任务
+${hasEnvironment 
+  ? `在测试环境 ${testEnvironmentUrl} 中执行功能测试。
+
+### 执行步骤
+1. 使用浏览器工具打开 ${testEnvironmentUrl}
+2. 检查页面是否正确加载
+3. 测试核心功能（登录、表单提交、按钮点击、导航等）
+4. 检查响应式布局
+5. 检查控制台错误
+6. 记录所有发现的问题
+
+### 要求
+- 对每个问题记录：问题描述、复现步骤、严重程度、截图
+- 测试所有用户故事中的功能点`
+  : `由于无测试环境，进行静态代码审查：
+1. 审查代码结构和逻辑
+2. 识别潜在的 bug 和代码异味
+3. 检查边界条件处理
+4. 评估代码可维护性`
+}
+
+## 环境状态
+${hasEnvironment ? '✅ 测试环境已提供: ' + testEnvironmentUrl : '⚠️ 无测试环境，执行静态代码审查'}
+
+## 输出要求
+${hasEnvironment 
+  ? '1. 测试执行结果\n2. 通过/失败用例列表\n3. 失败用例的详细描述\n4. 测试截图路径'
+  : '1. 代码审查发现的问题列表\n2. 问题严重程度（高/中/低）\n3. 具体代码位置和修复建议'
+}
+
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/tester/test-results.md\`
+`,
+    `# 角色：测试工程师 - 步骤 3/4：安全漏洞扫描
+
+## 用户需求
+${rawInput}
+
+## 代码位置
+${workspacePath || `workspace/${pipelineId}`}/developer
+
+## 你的任务
+${hasEnvironment 
+  ? `在测试环境 ${testEnvironmentUrl} 中执行安全测试。
+
+### 执行步骤
+1. 使用浏览器工具打开 ${testEnvironmentUrl}
+2. 重点关注：认证、授权、输入验证、XSS、CSRF、SQL注入等安全问题
+3. 尝试常见的安全攻击向量（如注入特殊字符、越权访问等）
+4. 检查敏感信息泄露
+5. 记录所有安全发现
+
+### 要求
+- 对每个安全问题记录：问题描述、复现步骤、风险等级`
+  : `进行静态安全代码审查：
+1. 检查认证和授权实现
+2. 检查输入验证和输出编码
+3. 检查敏感信息泄露风险
+4. 检查依赖安全问题`
+}
+
+## 环境状态
+${hasEnvironment ? '✅ 测试环境已提供: ' + testEnvironmentUrl : '⚠️ 无测试环境，执行静态安全审查'}
+
+## 输出要求
+1. 安全检查项
+2. 发现的安全问题
+3. 风险等级评估
+
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/tester/security-scan.md\`
+`,
+    `# 角色：测试工程师 - 步骤 4/4：生成测试报告
+
+## 用户需求
+${rawInput}
+
+## 代码位置
+${workspacePath || `workspace/${pipelineId}`}/developer
+
+## 测试环境
+${hasEnvironment ? '✅ 已提供: ' + testEnvironmentUrl : '⚠️ 未提供（静态审查模式）'}
+
+## 你的任务
+${hasEnvironment 
+  ? `执行最终回归验证，然后汇总所有测试结果生成最终测试报告。
+
+### 执行步骤
+1. 使用浏览器工具对 ${testEnvironmentUrl} 执行最终回归测试
+2. 验证之前发现的问题是否已修复
+3. 收集健康评分、截图证据、Bug 列表
+4. 整合步骤 1-3 的测试用例、测试结果、安全扫描结果
+5. 生成标准化的测试报告`
+  : `汇总步骤 1-3 的静态审查结果，生成最终测试报告。`
+}
+
+## 输出要求
 生成测试报告，包含：
+1. 测试摘要（总用例数、通过数、失败数、跳过数）
+2. Bug 列表（Bug ID、标题、严重程度、复现步骤）
+3. 性能数据（LCP、FID、CLS、加载时间）
+4. 安全扫描结果
+5. 环境测试状态（运行时测试/静态审查）
+6. gstack 健康评分和 ship-readiness 总结（如有）
 
-1. **测试摘要**
-   - 总用例数
-   - 通过数
-   - 失败数
-   - 跳过数
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/output/test-report.md\`
+和: \`${workspacePath || `workspace/${pipelineId}`}/output/security-report.md\`
+`
+  ];
 
-2. **Bug 列表**
-   - Bug ID
-   - 标题
-   - 严重程度 (CRITICAL/HIGH/MEDIUM/LOW)
-   - 复现步骤
-   - 截图（如有）
+  // 如果指定了 stepIndex，返回对应步骤的 prompt
+  if (stepIndex !== null && stepIndex >= 0 && stepIndex < stepPrompts.length) {
+    return stepPrompts[stepIndex];
+  }
 
-3. **性能数据**
-   - LCP
-   - FID
-   - CLS
-   - 加载时间
-
-## 输出格式
-
-保存为 JSON 格式到: ${workspacePath || `workspace/${pipelineId}`}/tester/report.json
-`;
+  // 默认返回完整 prompt（第4步）
+  return stepPrompts[3];
 }
 
 /**
  * 生成 Ops Agent 的提示词
  */
 function generateOpsPrompt(context) {
-  const { pipelineId, rawInput, workspacePath, developerOutput } = context;
+  const { pipelineId, rawInput, workspacePath, developerOutput, stepIndex } = context;
   
-  return `# 角色：运维工程师 (DevOps)
+  const stepPrompts = [
+    `# 角色：运维工程师 - 步骤 1/4：环境分析
 
 ## 用户需求
 ${rawInput}
@@ -786,22 +1278,95 @@ ${rawInput}
 ${workspacePath || `workspace/${pipelineId}`}/developer
 
 ## 你的任务
-
-1. **读取启动命令** - 在开发者产出目录中找到启动命令（通常在 README.md 或 package.json 中）
-2. **生成 Dockerfile** - 为前端和后端分别生成 Dockerfile
-3. **生成部署脚本** - 创建 docker-compose.yml 或 Kubernetes 配置
-4. **生成 CI/CD** - 创建 GitHub Actions 工作流
+1. 理解部署环境需求
+2. 阅读开发者产出目录，了解项目结构
+3. 确认需要部署的组件（前端、后端、数据库等）
+4. 分析环境依赖
 
 ## 输出要求
+生成环境分析报告，包含：
+- 部署组件清单
+- 环境依赖列表
+- 建议的部署架构
 
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/ops/env-analysis.md\`
+`,
+    `# 角色：运维工程师 - 步骤 2/4：Dockerfile 设计
+
+## 用户需求
+${rawInput}
+
+## 开发者产出位置
+${workspacePath || `workspace/${pipelineId}`}/developer
+
+## 你的任务
+1. 为前端项目生成 Dockerfile
+2. 为后端项目生成 Dockerfile
+3. 优化构建层数和缓存策略
+4. 确保多阶段构建减少镜像体积
+
+## 输出要求
 生成以下文件：
-- Dockerfile (前端)
-- Dockerfile (后端)
-- docker-compose.yml
-- .github/workflows/deploy.yml (可选)
+- Dockerfile (前端，基于 nginx)
+- Dockerfile (后端，基于 node:18)
+- docker-compose.yml (开发环境)
 
-保存到: ${workspacePath || `workspace/${pipelineId}`}/ops/
-`;
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/ops/\`
+`,
+    `# 角色：运维工程师 - 步骤 3/4：CI/CD 配置
+
+## 用户需求
+${rawInput}
+
+## 开发者产出位置
+${workspacePath || `workspace/${pipelineId}`}/developer
+
+## 你的任务
+1. 创建 GitHub Actions 工作流
+2. 配置测试、构建、部署流水线
+3. 设置环境变量和 secrets 配置
+4. 添加自动回滚机制
+
+## 输出要求
+生成以下文件：
+- .github/workflows/ci.yml (持续集成)
+- .github/workflows/deploy.yml (部署流水线)
+- .github/workflows/docker.yml (Docker 构建)
+
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/ops/.github/workflows/\`
+`,
+    `# 角色：运维工程师 - 步骤 4/4：部署脚本
+
+## 用户需求
+${rawInput}
+
+## 开发者产出位置
+${workspacePath || `workspace/${pipelineId}`}/developer
+
+## 你的任务
+1. 编写部署脚本 (deploy.sh)
+2. 准备环境变量模板 (.env.example)
+3. 编写部署说明文档
+4. 提供健康检查和回滚命令
+
+## 输出要求
+生成以下文件：
+- deploy.sh (部署脚本，可执行)
+- .env.example (环境变量模板)
+- DEPLOY.md (部署说明文档)
+- ops-config.md (运维配置汇总)
+
+保存到: \`${workspacePath || `workspace/${pipelineId}`}/ops/\`
+`
+  ];
+
+  // 如果指定了 stepIndex，返回对应步骤的 prompt
+  if (stepIndex !== null && stepIndex >= 0 && stepIndex < stepPrompts.length) {
+    return stepPrompts[stepIndex];
+  }
+
+  // 默认返回完整 prompt（第4步）
+  return stepPrompts[3];
 }
 
 /**
@@ -853,7 +1418,8 @@ async function executeAgent(pipelineId, agentName, context = {}) {
           pipelineId,
           rawInput: context.rawInput || context.request?.rawInput || '',
           workspacePath: `workspace/${pipelineId}`,
-          openspec: context.openspec
+          openspec: context.openspec,
+          techCoachOutput: context.techCoachOutput
         });
         break;
       case 'tester':
@@ -869,15 +1435,6 @@ async function executeAgent(pipelineId, agentName, context = {}) {
     
     console.log(`   📋 Prompt 长度: ${prompt.length} 字符`);
     
-    // 加载并应用 Skill（如果有）
-    if (skill) {
-      const skillContent = await loadSkill(skill);
-      if (skillContent) {
-        // Skill 内容可以作为额外上下文
-        console.log(`   ✅ Skill 已加载: ${skill}`);
-      }
-    }
-    
     // 执行 OpenCode（带重试机制）
     let rawOutput;
     let retryCount = 0;
@@ -886,7 +1443,8 @@ async function executeAgent(pipelineId, agentName, context = {}) {
       try {
         rawOutput = await runOpenCode(prompt, {
           model: AGENT_MODELS[agentName] || 'opencode/big-pickle',
-          agentName
+          agentName,
+          skillName: skill
         });
         break; // 成功，跳出重试循环
       } catch (error) {
@@ -973,7 +1531,17 @@ async function executeAgent(pipelineId, agentName, context = {}) {
 /**
  * 执行 Sprint 迭代
  */
-async function runIteration(sprintId, roleIndex) {
+// 定义每个角色的步骤数
+const ROLE_STEPS = {
+  product: 5,
+  architect: 4,
+  tech_coach: 1,   // 单步角色：整合产出，输出技术实现文档
+  developer: 6,   // 项目初始化 → 后端配置 → 后端API → 前端配置 → 前端页面 → 文档
+  tester: 4,
+  ops: 4
+};
+
+async function runIteration(sprintId, roleIndex, customModel = null, startStep = null) {
   console.log(`\n${'='.repeat(60)}`);
   console.log(`🚀 AI Agent Executor - Sprint: ${sprintId.slice(0, 8)}, Role: ${roleIndex}`);
   console.log(`${'='.repeat(60)}`);
@@ -1024,6 +1592,26 @@ async function runIteration(sprintId, roleIndex) {
   const iteration = sprint.iterations[roleIndex];
   const role = iteration?.role;
   
+  // 收集测试环境信息（如果是 tester 角色）
+  if (role === 'tester') {
+    context.testEnvironmentUrl = iteration?.testEnvironmentUrl || null;
+  }
+  
+  // 获取当前步骤索引 - 处理 NaN 情况
+  let stepIdx = null;
+  if (startStep !== undefined && startStep !== null) {
+    const parsed = parseInt(startStep);
+    stepIdx = isNaN(parsed) ? 0 : parsed;
+  }
+  console.log(`   📊 startStep: ${startStep}, parsed: ${stepIdx}, role: ${role}`);
+  
+  // 收集所有执行过的步骤（用于执行记录）
+  const allSteps = [];
+  for (let i = 0; i <= (stepIdx !== null ? stepIdx : (ROLE_STEPS[role] || 1) - 1); i++) {
+    const stepName = getStepGuidance(role, i)?.split('\n')[0] || `步骤 ${i + 1}`;
+    allSteps.push({ id: i + 1, name: stepName });
+  }
+  
   if (!role) {
     console.error('❌ 角色不存在');
     return;
@@ -1040,7 +1628,8 @@ async function runIteration(sprintId, roleIndex) {
       prompt = generateProductPrompt({
         sprintId,
         rawInput: context.rawInput,
-        workspacePath
+        workspacePath,
+        stepIndex: stepIdx
       });
       break;
     case 'architect':
@@ -1048,14 +1637,17 @@ async function runIteration(sprintId, roleIndex) {
         sprintId,
         rawInput: context.rawInput,
         workspacePath,
-        prd: context.prdOutput
+        prd: context.prdOutput,
+        stepIndex: stepIdx
       });
       break;
-    case 'scout':
-      prompt = generateScoutPrompt({
+    case 'tech_coach':
+      prompt = generateTechCoachPrompt({
         sprintId,
         rawInput: context.rawInput,
-        workspacePath
+        workspacePath,
+        prdOutput: context.prdOutput,
+        openspec: context.openspec
       });
       break;
     case 'developer':
@@ -1063,7 +1655,9 @@ async function runIteration(sprintId, roleIndex) {
         sprintId,
         rawInput: context.rawInput,
         workspacePath,
-        openspec: context.openspec
+        openspec: context.openspec,
+        techCoachOutput: context.techCoachOutput,
+        stepIndex: stepIdx
       });
       break;
     case 'tester':
@@ -1074,7 +1668,8 @@ async function runIteration(sprintId, roleIndex) {
         prdOutput: context.prdOutput,
         openspec: context.openspec,
         developerOutput: context.developerOutput,
-        codePaths: context.codePaths
+        codePaths: context.codePaths,
+        testEnvironmentUrl: context.testEnvironmentUrl
       });
       break;
     case 'ops':
@@ -1082,13 +1677,24 @@ async function runIteration(sprintId, roleIndex) {
         sprintId,
         rawInput: context.rawInput,
         workspacePath,
-        developerOutput: context.developerOutput
+        developerOutput: context.developerOutput,
+        stepIndex: stepIdx
       });
       break;
     default:
       prompt = `执行 ${info.name} 任务\n\n用户需求: ${context.rawInput}`;
   }
-  
+   
+  // 如果指定了 stepIndex，添加步骤指示
+  console.log(`   📊 startStep: ${startStep}, parsed: ${stepIdx}, role: ${role}`);
+  if (stepIdx !== null) {
+    const stepGuidance = getStepGuidance(role, stepIdx);
+    prompt = `${prompt}\n\n## 当前执行步骤\n${stepGuidance}`;
+    console.log(`   📝 步骤指示: ${stepGuidance ? stepGuidance.split('\n')[0] : '无'}`);
+  } else {
+    console.log(`   📝 步骤指示: 未指定步骤`);
+  }
+   
   console.log(`   📋 Prompt 长度: ${prompt.length} 字符`);
   
   // 更新状态为运行中
@@ -1101,9 +1707,23 @@ async function runIteration(sprintId, roleIndex) {
     const model = customModel || process.env.AGENT_MODEL || AGENT_MODELS[role] || 'opencode/big-pickle';
     console.log(`   🎯 使用模型: ${model}`);
     
+    // 根据角色和步骤确定需要加载的 skill
+    const stepSkills = ROLE_STEP_SKILLS[role];
+    const currentSkill = (stepIdx !== null && stepSkills && stepSkills[stepIdx]) || null;
+    if (currentSkill) {
+      console.log(`   📦 步骤 ${stepIdx + 1} 使用 Skill: ${currentSkill}`);
+    } else if (stepIdx !== null) {
+      console.log(`   📦 步骤 ${stepIdx + 1} 不需要 Skill`);
+    }
+    
+    // Tester 角色：根据是否有测试环境决定执行方式
+    const hasTestEnv = role === 'tester' && context.testEnvironmentUrl;
     const rawOutput = await runOpenCode(prompt, {
       model: model,
-      agentName: role
+      agentName: role,
+      skillName: currentSkill,
+      usePure: role !== 'tester' || !hasTestEnv,  // 无环境时使用 --pure，有环境时保留 gstack 插件
+      qaInstruction: (role === 'tester' && hasTestEnv) ? QA_INSTRUCTION : null  // 有环境时注入轻量 QA 指令
     });
     
     console.log(`   ✅ 执行完成，输出长度: ${rawOutput.length} 字符`);
@@ -1127,6 +1747,38 @@ async function runIteration(sprintId, roleIndex) {
     
     console.log(`   ✅ 输出已保存`);
     
+    // 检查是否需要继续执行后续步骤
+    const totalSteps = ROLE_STEPS[role] || 1;
+    const currentStep = stepIdx !== null ? stepIdx + 1 : totalSteps;
+    
+    if (stepIdx !== null && currentStep < totalSteps) {
+      // 继续执行下一步骤
+      console.log(`\n   🔄 步骤 ${currentStep + 1}/${totalSteps} 准备中...`);
+      
+      // 等待 2 秒后继续执行下一步
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // 递归执行下一步骤
+      return await runIteration(sprintId, roleIndex, customModel, currentStep);
+    }
+    
+    console.log(`\n   ✅ 所有步骤执行完成 (共 ${totalSteps} 步骤)`);
+    
+    // 保存最终输出到 iteration
+    await axios.put(`${API_BASE}/api/sprints/${sprintId}/iterations/${roleIndex}/output`, {
+      output: output || `${role} 执行完成`
+    });
+    
+    // 保存执行记录
+    await saveExecutionLog(sprintId, role, {
+      roleIndex,
+      startedAt: iteration?.startedAt || new Date().toISOString(),
+      steps: allSteps,
+      rawInput: context.rawInput,
+      testEnvironmentUrl: context.testEnvironmentUrl,
+      output: output
+    });
+    
     return { success: true, output };
   } catch (error) {
     console.error(`   ❌ 执行失败:`, error.message);
@@ -1145,12 +1797,13 @@ async function main() {
   const sprintId = args[0];
   const roleIndex = args[1] ? parseInt(args[1]) : null;
   const customModel = args[2]; // 可选的模型参数
+  const stepIndex = args[3] !== undefined ? parseInt(args[3]) : null;
   
   if (!sprintId) {
     console.log(`
 🤖 AI Agent Executor (Sprint 模式)
 
-用法: node sprint-agent-executor.js <sprint-id> <role-index> [model]
+用法: node sprint-agent-executor.js <sprint-id> <role-index> [model] [stepIndex]
     `);
     process.exit(1);
   }
@@ -1164,9 +1817,17 @@ async function main() {
   if (customModel) {
     console.log(`   🎯 使用指定模型: ${customModel}`);
   }
+  
+  // 获取角色名称和步骤数
+  const roleName = ['ba', 'product', 'architect', 'tech_coach', 'developer', 'tester', 'ops', 'evolver', 'ghost', 'creative'][roleIndex] || 'unknown';
+  const totalSteps = ROLE_STEPS[roleName] || 1;
+  
+  // 如果没有指定 stepIndex，从第 0 步开始（会连续执行所有步骤）
+  const startStep = stepIndex !== undefined ? stepIndex : 0;
+  console.log(`🎯 执行角色: ${roleName}, 步骤: ${startStep + 1}-${totalSteps} (共${totalSteps}步)`);
 
   try {
-    await runIteration(sprintId, roleIndex);
+    await runIteration(sprintId, roleIndex, customModel, startStep);
   } catch (error) {
     console.error('❌ 执行失败:', error);
     process.exit(1);

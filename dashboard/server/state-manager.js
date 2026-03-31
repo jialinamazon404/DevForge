@@ -39,9 +39,9 @@ export class StateManager {
     const STATE_DIR = path.join(process.cwd(), 'state');
     const ROUTES = {
       CRITICAL: ['product', 'architect', 'creative', 'developer', 'tester', 'evolver'],
-      BUILD: ['product', 'architect', 'scout', 'developer', 'tester', 'ops', 'evolver'],
+      BUILD: ['product', 'architect', 'tech_coach', 'developer', 'tester', 'ops', 'evolver'],
       REVIEW: ['creative', 'ghost', 'tester'],
-      QUERY: ['scout'],
+      QUERY: ['tech_coach'],
       SECURITY: ['ghost', 'architect']
     };
     const id = uuidv4();

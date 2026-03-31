@@ -406,14 +406,14 @@ const agents = [
     ]
   },
   {
-    id: 'scout',
-    name: '侦察兵',
-    role: 'Scout',
+    id: 'tech_coach',
+    name: '开发教练',
+    role: 'Tech Coach',
     icon: '🔍',
     description: '技术可行性验证，探索代码库，识别风险和机会，基于 OpenSpec 进行分析',
     triggers: ['BUILD模式'],
     tools: ['代码搜索', '文件探索', '依赖分析', 'OpenSpec验证'],
-    route: ['scout'],
+    route: ['tech_coach'],
     skills: [
       { name: 'OpenSpec验证', description: '验证 OpenSpec 可行性，分析技术边界和依赖' },
       { name: '代码探索', description: '探索现有代码库结构，分析相似实现' },

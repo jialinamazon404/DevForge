@@ -818,14 +818,14 @@
             </div>
           </template>
           
-          <!-- Scout Output -->
-          <template v-else-if="selectedStage.role === 'scout'">
+          <!-- Tech Coach Output -->
+          <template v-else-if="selectedStage.role === 'tech_coach'">
             <div class="space-y-3">
               <div class="bg-cyan-500/20 border border-cyan-700 rounded-lg p-4">
                 <div class="flex items-center space-x-2 mb-3">
                   <span class="text-2xl">🔍</span>
                   <div>
-                    <div class="text-cyan-400 font-medium">侦察完成</div>
+                    <div class="text-cyan-400 font-medium">可行性分析完成</div>
                     <div class="text-gray-400 text-sm">{{ selectedStage.output.findings?.length || 0 }} 个发现</div>
                   </div>
                 </div>
@@ -940,7 +940,7 @@ function deliverableTitle(role) {
   const titles = {
     product: 'PRD 产品需求文档',
     architect: 'OpenSpec 系统设计',
-    scout: '可行性分析报告',
+    tech_coach: '可行性分析报告',
     developer: '源代码 + PR',
     tester: '测试报告 + Bug 列表',
     ops: 'Docker + CI/CD 配置',
@@ -1016,7 +1016,7 @@ const roleNames = {
   gatekeeper: '守门人',
   product: '产品',
   architect: '架构师',
-  scout: '侦察兵',
+  tech_coach: '开发教练',
   developer: '开发',
   tester: '测试',
   ops: '运维',
@@ -1030,7 +1030,7 @@ const roleIcons = {
   gatekeeper: '🛡️',
   product: '📋',
   architect: '🏗️',
-  scout: '🔍',
+  tech_coach: '🔍',
   developer: '💻',
   tester: '🧪',
   ops: '🚀',

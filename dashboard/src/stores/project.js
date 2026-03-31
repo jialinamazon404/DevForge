@@ -262,6 +262,23 @@ export const useProjectStore = defineStore('project', {
       }
     },
 
+    async updateEnvironment(sprintId, roleIndex, testEnvironmentUrl) {
+      this.error = null
+      try {
+        const { data } = await axios.put(
+          `${API_URL}/api/sprints/${sprintId}/iterations/${roleIndex}/environment`,
+          { testEnvironmentUrl }
+        )
+        if (this.currentSprint?.id === sprintId) {
+          this.currentSprint = await this.fetchSprint(sprintId)
+        }
+        return data
+      } catch (e) {
+        this.error = e.message
+        return null
+      }
+    },
+
     async rerunIteration(sprintId, roleIndex) {
       this.error = null
       try {
@@ -278,11 +295,12 @@ export const useProjectStore = defineStore('project', {
       }
     },
 
-    async executeIteration(sprintId, roleIndex) {
+    async executeIteration(sprintId, roleIndex, stepIndex = null) {
       this.error = null
       try {
         const { data } = await axios.post(
-          `${API_URL}/api/sprints/${sprintId}/iterations/${roleIndex}/execute`
+          `${API_URL}/api/sprints/${sprintId}/iterations/${roleIndex}/execute`,
+          { stepIndex }
         )
         return data
       } catch (e) {
@@ -314,6 +332,16 @@ export const useProjectStore = defineStore('project', {
         return data
       } catch (e) {
         return { valid: false, error: e.message }
+      }
+    },
+
+    // 获取 sprint 的实际文件列表
+    async fetchSprintFiles(sprintId) {
+      try {
+        const { data } = await axios.get(`${API_URL}/api/sprints/${sprintId}/files`)
+        return data.files || []
+      } catch (e) {
+        return []
       }
     },
 

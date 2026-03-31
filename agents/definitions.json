@@ -25,11 +25,25 @@
     },
     "product": {
       "name": "产品经理",
-      "name_en": "Product Manager",
+      "name_en": "Product BA",
       "icon": "📋",
       "goal": "理解用户需求，生成 PRD、产品规格、界面布局、交互流程、用户故事",
       "tools": ["read", "write", "glob", "grep"],
-      "skills": ["user-story", "product-spec-kit", "ui-ux-designer", "tailwind-design-system", "user-journeys", "brainstorming"],
+      "skills": [],
+      "step_skills": {
+        "0": "brainstorming",
+        "1": "user-story",
+        "2": "product-spec-kit",
+        "3": "tailwind-design-system",
+        "4": null
+      },
+      "steps": [
+        {"id": 1, "name": "用户画像与核心需求", "prompt": "分析用户画像和核心需求"},
+        {"id": 2, "name": "用户故事拆解", "prompt": "拆解用户故事"},
+        {"id": 3, "name": "功能清单与验收标准", "prompt": "定义功能清单和验收标准"},
+        {"id": 4, "name": "界面布局与交互流程", "prompt": "设计界面布局和交互流程"},
+        {"id": 5, "name": "汇总生成PRD", "prompt": "生成完整PRD文档"}
+      ],
       "scenarios": {
         "新产品立项": ["user-story", "product-spec-kit", "brainstorming"],
         "原型与设计落地": ["ui-ux-designer", "tailwind-design-system"],
@@ -88,7 +102,19 @@
       "icon": "🏗️",
       "goal": "基于 PRD 生成 OpenSpec（系统设计、API 规范、数据模型、技术选型）",
       "tools": ["read", "write", "grep", "glob"],
-      "skills": ["OpenSpec", "system-design", "database-design", "plan-eng-review"],
+      "skills": [],
+      "step_skills": {
+        "0": "system-design",
+        "1": "api-design",
+        "2": "database-design",
+        "3": "system-design"
+      },
+      "steps": [
+        {"id": 1, "name": "系统架构设计", "prompt": "基于 PRD 设计系统架构，包含组件划分、技术栈选型"},
+        {"id": 2, "name": "API 接口设计", "prompt": "设计 RESTful API 接口规范"},
+        {"id": 3, "name": "数据库模型设计", "prompt": "设计数据库表结构和关系"},
+        {"id": 4, "name": "技术选型总结", "prompt": "总结技术选型决策，生成 OpenSpec 文档"}
+      ],
       "scenarios": {
         "新系统架构设计": {
           "description": "从零开始设计新系统架构",
@@ -145,33 +171,43 @@
         }
       }
     },
-    "scout": {
-      "name": "侦察兵",
-      "name_en": "Scout",
+    "tech_coach": {
+      "name": "开发教练",
+      "name_en": "Tech Coach",
       "icon": "🔍",
-      "goal": "验证 OpenSpec 可行性，探索代码库，识别风险和机会",
-      "tools": ["grep", "glob", "read", "bash"],
-      "input": "OpenSpec 文档 + 目标代码库",
+      "goal": "整合产品和架构产出，输出技术实现文档（分前后端），减少开发者思考负担",
+      "tools": ["read", "write", "glob", "grep"],
+      "input": "PRD + OpenSpec + 功能清单 + 界面布局 + 用户故事",
       "thinking_template": [
-        "1. 理解 OpenSpec 的技术要求",
-        "2. 探索现有代码库结构",
-        "3. 分析依赖关系",
-        "4. 验证技术选型可行性",
-        "5. 识别潜在风险",
-        "6. 搜索相似实现作为参考"
+        "1. 整合产品产出（PRD、功能清单、界面布局、用户故事）",
+        "2. 整合架构产出（OpenSpec、API设计、数据模型）",
+        "3. 前端实现规划（组件结构、路由、状态管理、API调用）",
+        "4. 后端实现规划（API清单、数据库实现、业务逻辑、认证权限）",
+        "5. 技术可行性分析（风险点、实现难点）",
+        "6. 开发任务拆解（用户故事→开发任务）"
       ],
       "output": {
-        "findings": [
-          {"type": "feasibility", "location": "path", "description": "描述", "severity": "MEDIUM"}
-        ],
-        "similar_implementations": [],
-        "dependency_analysis": {"existing": [], "new": []},
-        "recommendations": ["建议1", "建议2"]
+        "frontend_implementation": "前端实现文档（组件结构、路由、状态管理、API调用封装）",
+        "backend_implementation": "后端实现文档（API清单、数据库实现、业务逻辑、认证权限）",
+        "tech_feasibility": "技术可行性分析（风险点、实现难点）",
+        "task_breakdown": "开发任务拆解（对应用户故事）"
       },
       "output_files": {
-        "scoutReport": {
-          "path": "output/scout-report.md",
-          "description": "技术可行性评估报告",
+        "techImplementation": {
+          "path": "tech-coach/tech-implementation.md",
+          "description": "技术实现文档（前后端分离）",
+          "type": "markdown",
+          "required": true
+        },
+        "userStories": {
+          "path": "output/user-stories.md",
+          "description": "开发用用户故事",
+          "type": "markdown",
+          "required": true
+        },
+        "techFeasibility": {
+          "path": "output/tech-feasibility.md",
+          "description": "技术可行性分析",
           "type": "markdown",
           "required": true
         }
@@ -181,9 +217,25 @@
       "name": "开发者",
       "name_en": "Developer",
       "icon": "💻",
-      "goal": "基于 OpenSpec 实现代码，编写测试，Git 提交",
+      "goal": "基于技术实现文档和 OpenSpec 实现代码，编写测试，Git 提交",
       "tools": ["read", "write", "edit", "bash", "git"],
-      "skills": ["api-design", "event-driven", "test-driven-development", "code-refactoring", "systematic-debugging", "unit-test-generator", "log-analyzer"],
+      "skills": [],
+      "step_skills": {
+        "0": null,
+        "1": null,
+        "2": "api-design",
+        "3": null,
+        "4": null,
+        "5": "test-driven-development"
+      },
+      "steps": [
+        {"id": 1, "name": "项目结构", "prompt": "根据技术文档创建项目目录结构"},
+        {"id": 2, "name": "后端配置", "prompt": "配置后端基础环境和依赖"},
+        {"id": 3, "name": "后端 API", "prompt": "实现所有后端 API 接口"},
+        {"id": 4, "name": "前端配置", "prompt": "配置前端项目和依赖"},
+        {"id": 5, "name": "前端页面", "prompt": "实现所有前端页面和组件"},
+        {"id": 6, "name": "开发文档", "prompt": "生成 README 和 API 文档"}
+      ],
       "scenarios": {
         "日常功能开发": {
           "description": "日常功能开发，包含代码编写、重构优化、测试、文档",
@@ -224,7 +276,7 @@
       },
       "output_files": {
         "devSummary": {
-          "path": "output/dev-summary.md",
+          "path": "developer/dev-summary.md",
           "description": "开发摘要文档",
           "type": "markdown",
           "required": true
@@ -257,10 +309,16 @@
     },
     "tester": {
       "name": "测试工程师",
-      "name_en": "Tester",
+      "name_en": "QA Engineer",
       "icon": "🧪",
       "goal": "使用 gstack 执行集成测试，生成测试报告",
       "tools": ["browse", "qa", "benchmark"],
+      "steps": [
+        {"id": 1, "name": "功能测试用例设计", "prompt": "设计功能测试用例"},
+        {"id": 2, "name": "执行功能测试", "prompt": "执行功能测试并记录结果"},
+        {"id": 3, "name": "安全漏洞扫描", "prompt": "进行安全漏洞扫描"},
+        {"id": 4, "name": "生成测试报告", "prompt": "汇总生成测试报告"}
+      ],
       "input": "开发者产出代码 + PR URL",
       "thinking_template": [
         "1. 理解要测试的功能点",
@@ -294,7 +352,19 @@
       "icon": "⚙️",
       "goal": "配置 Docker、CI/CD、部署脚本、环境变量、多云平台支持",
       "tools": ["read", "write", "bash"],
-      "skills": ["ship", "docker-helper", "azure-deploy"],
+      "skills": [],
+      "step_skills": {
+        "0": "docker-helper",
+        "1": "docker-helper",
+        "2": "azure-deploy",
+        "3": "docker-helper"
+      },
+      "steps": [
+        {"id": 1, "name": "环境分析", "prompt": "分析部署环境需求和项目结构"},
+        {"id": 2, "name": "Dockerfile 设计", "prompt": "生成前端/后端 Dockerfile 和 docker-compose"},
+        {"id": 3, "name": "CI/CD 配置", "prompt": "创建 GitHub Actions 工作流"},
+        {"id": 4, "name": "部署脚本", "prompt": "编写部署脚本和环境变量模板"}
+      ],
       "scenarios": {
         "容器化部署": {
           "description": "Docker 容器化部署到 Kubernetes",
