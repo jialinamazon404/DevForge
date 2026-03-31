@@ -258,7 +258,7 @@ Architect   Tester → Ops
 | **Developer** | 💻 | 代码实现 | 前端/后端代码 |
 | **Tester** | 🧪 | 功能+安全测试 | 测试报告 |
 | **Ops** | ⚙️ | 部署配置 | Dockerfile/部署配置 |
-| **Evolver** | 🔄 | 重构优化 | 重构建议报告 |
+| **Evolver** | 🔄 | 重构优化 | 迭代/重构建议报告 |
 | **Ghost** | 👻 | 安全审计 | 安全报告 |
 | **Creative** | 🎨 | 设计评审 | 评审意见 |
 
