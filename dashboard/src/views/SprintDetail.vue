@@ -380,7 +380,7 @@
                       <span v-if="file.loading" class="text-yellow-400 text-xs ml-2">生成中...</span>
                       <span v-else-if="!file.exists && !file.loading" class="text-gray-500 text-xs ml-2">(未生成)</span>
                     </div>
-                    <div class="text-gray-500 text-xs">{{ workspaceBasePath + file.path }}</div>
+                    <div class="text-gray-500 text-xs">{{ (file.source === 'project' ? projectBasePath : workspaceBasePath) + file.path }}</div>
                   </div>
                 </div>
                 <div class="flex space-x-2">
@@ -393,14 +393,14 @@
                   </button>
                   <button
                     v-if="file.exists && !file.loading"
-                    @click="openFile(file.path)"
+                    @click="openFile(file.path, file.source)"
                     class="px-3 py-1.5 bg-vue-primary/20 text-vue-primary hover:bg-vue-primary/30 rounded text-xs transition-colors"
                   >
                     打开
                   </button>
                   <button
                     v-if="file.exists && !file.loading"
-                    @click="downloadFile(file.path)"
+                    @click="downloadFile(file.path, file.source)"
                     class="px-3 py-1.5 bg-gray-600/20 text-gray-300 hover:bg-gray-600/40 rounded text-xs transition-colors"
                   >
                     下载
@@ -1058,56 +1058,53 @@ function formatDate(dateStr) {
 // 输出文件列表配置
 const outputFilesConfig = {
   gatekeeper: [
-    { name: '路由决策', icon: '🚪', path: 'output/route-decision.md', category: 'doc' }
+    { name: '路由决策', icon: '🚪', path: 'output/route-decision.md', source: 'sprint' }
   ],
   product: [
-    { name: '用户画像', icon: '👤', path: 'product/user-personas.md', category: 'doc' },
-    { name: '用户故事', icon: '📝', path: 'product/user-stories.md', category: 'doc' },
-    { name: '功能清单', icon: '✅', path: 'product/functional-requirements.md', category: 'doc' },
-    { name: '界面布局', icon: '🎨', path: 'product/ui-layout.md', category: 'doc' },
-    { name: '交互流程', icon: '🔀', path: 'product/user-journey.md', category: 'doc' },
-    { name: 'PRD 文档', icon: '📋', path: 'product/prd.md', category: 'doc' }
+    { name: '用户画像', icon: '👤', path: 'product/user-personas.md', source: 'sprint' },
+    { name: '用户故事', icon: '📝', path: 'product/user-stories.md', source: 'sprint' },
+    { name: '功能清单', icon: '✅', path: 'product/functional-requirements.md', source: 'sprint' },
+    { name: '界面布局', icon: '🎨', path: 'product/ui-layout.md', source: 'sprint' },
+    { name: '交互流程', icon: '🔀', path: 'product/user-journey.md', source: 'sprint' },
+    { name: 'PRD 文档', icon: '📋', path: 'product/prd.md', source: 'sprint' }
   ],
   architect: [
-    { name: 'OpenSpec', icon: '🏗️', path: 'architect/openspec.yaml', category: 'doc' },
-    { name: '架构图', icon: '📊', path: 'architect/architecture.md', category: 'doc' }
+    { name: '系统架构', icon: '🏗️', path: 'architect/architecture.md', source: 'sprint' },
+    { name: 'API 设计', icon: '📡', path: 'output/architect-step2.md', source: 'sprint' },
+    { name: '数据库设计', icon: '🗄️', path: 'output/architect-step3.md', source: 'sprint' },
+    { name: 'OpenSpec Changes', icon: '📋', path: 'openspec/changes/', source: 'project', category: 'dir' }
   ],
   tech_coach: [
-    { name: '可行性报告', icon: '🔍', path: 'output/scout-report.md', category: 'doc' }
+    { name: '技术实现文档', icon: '📝', path: 'tech-coach/tech-implementation.md', source: 'sprint' },
+    { name: '用户故事', icon: '📖', path: 'output/user-stories.md', source: 'sprint' },
+    { name: '技术可行性', icon: '🔍', path: 'output/tech-feasibility.md', source: 'sprint' }
   ],
   developer: [
-    { name: '开发摘要', icon: '📋', path: 'output/dev-summary.md', category: 'doc' },
-    { name: 'README', icon: '📖', path: 'developer/README.md', category: 'code' },
-    { name: 'API 文档', icon: '📚', path: 'developer/API.md', category: 'code' },
-    { name: '前端代码', icon: '💻', path: 'developer/frontend/', category: 'dir' },
-    { name: '后端代码', icon: '⚙️', path: 'developer/backend/', category: 'dir' }
+    { name: 'README', icon: '📖', path: 'src/README.md', source: 'project' },
+    { name: 'API 文档', icon: '📚', path: 'src/API.md', source: 'project' },
+    { name: '前端代码', icon: '💻', path: 'src/frontend/', source: 'project', category: 'dir' },
+    { name: '后端代码', icon: '⚙️', path: 'src/backend/', source: 'project', category: 'dir' }
   ],
   tester: [
-    { name: '测试用例', icon: '📝', path: 'tester/test-cases.md', category: 'doc' },
-    { name: '测试结果', icon: '📊', path: 'tester/test-results.md', category: 'doc' },
-    { name: '安全扫描', icon: '🔒', path: 'tester/security-scan.md', category: 'doc' },
-    { name: '测试报告', icon: '🧪', path: 'tester/test-report.md', category: 'doc' },
-    { name: '安全报告', icon: '🛡️', path: 'tester/security-report.md', category: 'doc' }
+    { name: '测试用例', icon: '📝', path: 'tester/test-cases.md', source: 'sprint' },
+    { name: '测试结果', icon: '📊', path: 'tester/test-results.md', source: 'sprint' },
+    { name: '安全扫描', icon: '🔒', path: 'tester/security-scan.md', source: 'sprint' },
+    { name: '测试报告', icon: '🧪', path: 'tester/test-report.md', source: 'sprint' },
+    { name: '安全报告', icon: '🛡️', path: 'tester/security-report.md', source: 'sprint' }
   ],
   ops: [
-    { name: '部署配置', icon: '⚙️', path: 'ops/ops-config.md', category: 'doc' },
-    { name: 'Dockerfile', icon: '🐳', path: 'ops/Dockerfile', category: 'config' },
-    { name: 'Docker Compose', icon: '📦', path: 'ops/docker-compose.yml', category: 'config' }
+    { name: '部署配置', icon: '⚙️', path: 'ops/ops-config.md', source: 'sprint' },
+    { name: 'Dockerfile', icon: '🐳', path: 'ops/Dockerfile', source: 'sprint' },
+    { name: 'Docker Compose', icon: '📦', path: 'ops/docker-compose.yml', source: 'sprint' }
   ],
   ghost: [
-    { name: '安全审计', icon: '👻', path: 'ghost/security-report.md', category: 'doc' }
+    { name: '安全审计', icon: '👻', path: 'ghost/security-report.md', source: 'sprint' }
   ],
   evolver: [
-    { name: '重构建议', icon: '🔄', path: 'evolver/evolver-report.md', category: 'doc' }
+    { name: '重构建议', icon: '🔄', path: 'evolver/evolver-report.md', source: 'sprint' }
   ],
   creative: [
-    { name: '设计评审', icon: '🎨', path: 'creative/design-review.md', category: 'doc' }
-  ],
-  creative: [
-    { name: '设计评审', icon: '🎨', path: 'output/design-review.md', category: 'doc' }
-  ],
-  evolver: [
-    { name: '进化建议', icon: '🔮', path: 'output/evolver-report.md', category: 'doc' }
+    { name: '设计评审', icon: '🎨', path: 'output/design-review.md', source: 'sprint' }
   ]
 }
 
@@ -1182,18 +1179,23 @@ const workspaceBasePath = computed(() => {
   return `/Users/jialin.chen/WorkSpace/DevForge/workspace/${props.sprintId}/`
 })
 
-function getFileUrl(filePath) {
-  const base = workspaceBasePath.value
+const projectBasePath = computed(() => {
+  const projectId = sprint.value?.projectId || props.sprintId
+  return `/Users/jialin.chen/WorkSpace/DevForge/projects/${projectId}/`
+})
+
+function getFileUrl(filePath, source) {
+  const base = source === 'project' ? projectBasePath.value : workspaceBasePath.value
   return `file://${base}${filePath}`
 }
 
-function openFile(filePath) {
-  const url = getFileUrl(filePath)
+function openFile(filePath, source) {
+  const url = getFileUrl(filePath, source)
   window.open(url, '_blank')
 }
 
-function downloadFile(filePath) {
-  const url = getFileUrl(filePath)
+function downloadFile(filePath, source) {
+  const url = getFileUrl(filePath, source)
   const link = document.createElement('a')
   link.href = url
   link.download = filePath.split('/').pop()

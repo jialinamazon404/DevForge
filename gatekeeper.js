@@ -52,7 +52,7 @@ class Gatekeeper {
       context: {
         prd: null,
         openspec: null,
-        scoutReport: null,
+        techCoachReport: null,
         devOutput: null,
         testReport: null,
         opsConfig: null,
@@ -139,8 +139,8 @@ class Gatekeeper {
       case 'architect':
         filePath = path.join(this.workspace, 'output', 'openspec.md');
         break;
-      case 'scout':
-        filePath = path.join(this.workspace, 'output', 'scout-report.md');
+      case 'tech_coach':
+        filePath = path.join(this.workspace, 'output', 'tech-implementation.md');
         break;
       case 'developer':
         filePath = path.join(this.workspace, 'output', 'dev-summary.md');
@@ -283,7 +283,7 @@ class AgentRunner {
         return this.generatePRD(context, thinking);
       case 'architect':
         return this.generateOpenSpec(context, thinking);
-      case 'scout':
+      case 'tech_coach':
         return this.generateScoutReport(context, thinking);
       case 'developer':
         return this.generateDevOutput(context, thinking);

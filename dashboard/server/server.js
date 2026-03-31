@@ -1187,14 +1187,28 @@ app.get('/api/sprints/:sprintId/file', async (req, res) => {
     const sprintId = req.params.sprintId;
     const baseWorkspacePath = path.join(ROOT, 'workspace', sprintId);
     
-    // 尝试多个可能的位置
+    // 获取 sprint 信息以获取 projectId
+    let projectId = sprintId; // fallback
+    try {
+      const sprint = sprintManager.sprints?.get?.(sprintId);
+      if (sprint?.projectId) projectId = sprint.projectId;
+    } catch (e) {}
+    
+    const projectPath = path.join(ROOT, 'projects', projectId);
+    
+    // 尝试多个可能的位置：先项目目录（代码/OpenSpec），再 workspace（执行记录）
     const possiblePaths = [
-      path.join(baseWorkspacePath, 'output', file),           // output/prd.md
-      path.join(baseWorkspacePath, file),                     // prd.md (根目录)
-      path.join(baseWorkspacePath, 'product', file),          // product/prd.md
-      path.join(baseWorkspacePath, 'architect', file),        // architect/openspec.md
-      path.join(baseWorkspacePath, 'developer', file),        // developer/README.md
-      path.join(baseWorkspacePath, 'execution-log', file),     // execution-log/01-product.json
+      path.join(projectPath, file),                             // 项目根目录文件
+      path.join(projectPath, 'src', file),                      // src/ 代码文件
+      path.join(projectPath, 'openspec', file),                 // openspec/ 文件
+      path.join(baseWorkspacePath, 'output', file),             // output/ 执行记录
+      path.join(baseWorkspacePath, file),                       // 根目录
+      path.join(baseWorkspacePath, 'product', file),            // product/ 产品文档
+      path.join(baseWorkspacePath, 'architect', file),          // architect/ 架构文档
+      path.join(baseWorkspacePath, 'tech-coach', file),         // tech-coach/ 技术教练
+      path.join(baseWorkspacePath, 'tester', file),             // tester/ 测试文档
+      path.join(baseWorkspacePath, 'ops', file),                // ops/ 运维文档
+      path.join(baseWorkspacePath, 'execution-log', file),      // execution-log/ 执行日志
     ];
     
     let fullPath = null;
@@ -1209,8 +1223,8 @@ app.get('/api/sprints/:sprintId/file', async (req, res) => {
       return res.status(404).json({ error: 'File not found', searched: possiblePaths });
     }
 
-    // 安全检查：防止路径穿越 - 确保文件在 workspace 目录内
-    if (!fullPath.startsWith(baseWorkspacePath)) {
+    // 安全检查：防止路径穿越
+    if (!fullPath.startsWith(baseWorkspacePath) && !fullPath.startsWith(projectPath)) {
       return res.status(403).json({ error: 'Invalid file path' });
     }
 
@@ -1267,22 +1281,32 @@ app.get('/api/sprints/:sprintId/files', async (req, res) => {
     const sprintId = req.params.sprintId;
     const basePath = path.join(ROOT, 'workspace', sprintId);
     
-    if (!fsSync.existsSync(basePath)) {
+    // 获取 sprint 信息以获取 projectId
+    let projectId = sprintId;
+    try {
+      const sprint = sprintManager.sprints?.get?.(sprintId);
+      if (sprint?.projectId) projectId = sprint.projectId;
+    } catch (e) {}
+    
+    const projectPath = path.join(ROOT, 'projects', projectId);
+    const projectSrcPath = path.join(projectPath, 'src');
+    
+    if (!fsSync.existsSync(basePath) && !fsSync.existsSync(projectPath)) {
       return res.json({ files: [], message: '工作区不存在' });
     }
     
-    // 定义各角色可能生成的文件
+    // 定义各角色可能生成的文件（workspace 执行记录）
     const roleFileMap = {
       product: ['product/prd.md', 'product/prd.json', 'product/user-personas.md', 'product/user-stories.md', 'product/functional-requirements.md', 'product/ui-layout.md', 'product/user-journey.md'],
-      architect: ['architect/openspec.yaml', 'architect/architecture.md', 'output/architect-step1.md', 'output/architect-step2.md', 'output/architect-step3.md'],
-      developer: ['developer/README.md', 'developer/API.md', 'developer/package.json', 'output/dev-summary.md'],
-      tester: ['tester/test-report.md', 'tester/security-report.md'],
-      ops: ['ops/Dockerfile', 'ops/docker-compose.yml', 'ops/ops-config.md']
+      architect: ['architect/architecture.md', 'output/architect-step1.md', 'output/architect-step2.md', 'output/architect-step3.md'],
+      tech_coach: ['tech-coach/tech-implementation.md', 'output/user-stories.md', 'output/tech-feasibility.md'],
+      tester: ['tester/test-report.md', 'tester/security-report.md', 'tester/test-cases.md', 'tester/test-results.md', 'tester/security-scan.md'],
+      ops: ['ops/Dockerfile', 'ops/docker-compose.yml', 'ops/ops-config.md', 'ops/env-analysis.md', 'ops/.github/workflows/deploy.yml']
     };
     
     const allFiles = [];
     
-    // 遍历所有可能的文件，检查是否存在
+    // 遍历 workspace 文件（执行记录）
     for (const [role, files] of Object.entries(roleFileMap)) {
       for (const file of files) {
         const fullPath = path.join(basePath, file);
@@ -1294,9 +1318,76 @@ app.get('/api/sprints/:sprintId/files', async (req, res) => {
             name: path.basename(file),
             path: file,
             size: stat.size,
-            exists: true
+            exists: true,
+            source: 'sprint'
           });
         }
+      }
+    }
+    
+    // 扫描项目代码文件
+    if (fsSync.existsSync(projectSrcPath)) {
+      try {
+        async function scanProjectDir(dir, relPath) {
+          const items = await fs.readdir(dir, { withFileTypes: true });
+          for (const item of items) {
+            if (['node_modules', '.git', 'dist', '.DS_Store'].includes(item.name)) continue;
+            const itemPath = path.join(dir, item.name);
+            const itemRelPath = relPath ? `${relPath}/${item.name}` : item.name;
+            if (item.isDirectory()) {
+              allFiles.push({
+                role: 'developer',
+                name: item.name + '/',
+                path: `src/${itemRelPath}`,
+                size: 0,
+                exists: true,
+                source: 'project',
+                isDirectory: true
+              });
+              await scanProjectDir(itemPath, itemRelPath);
+            } else {
+              const stat = await fs.stat(itemPath);
+              allFiles.push({
+                role: 'developer',
+                name: item.name,
+                path: `src/${itemRelPath}`,
+                size: stat.size,
+                exists: true,
+                source: 'project'
+              });
+            }
+          }
+        }
+        await scanProjectDir(projectSrcPath, '');
+      } catch (e) {
+        // ignore
+      }
+    }
+    
+    // 扫描 OpenSpec change 目录（项目级）
+    const openspecChangesDir = path.join(projectPath, 'openspec', 'changes');
+    if (fsSync.existsSync(openspecChangesDir)) {
+      try {
+        const changes = await fs.readdir(openspecChangesDir);
+        for (const changeName of changes) {
+          const changeDir = path.join(openspecChangesDir, changeName);
+          const changeFiles = await fs.readdir(changeDir);
+          for (const file of changeFiles) {
+            const filePath = `openspec/changes/${changeName}/${file}`;
+            const fullPath = path.join(projectPath, filePath);
+            const stat = await fs.stat(fullPath);
+            allFiles.push({
+              role: 'architect',
+              name: `${changeName}/${file}`,
+              path: filePath,
+              size: stat.size,
+              exists: true,
+              source: 'project'
+            });
+          }
+        }
+      } catch (e) {
+        // ignore
       }
     }
     

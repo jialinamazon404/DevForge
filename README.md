@@ -1,10 +1,10 @@
 # DevForge - AI 开发舰队
 
-> 多角色 AI 软件开发团队编排系统 — 基于 OpenCode CLI + Superpowers Skills + gstack
+> 多角色 AI 软件开发团队编排系统 — 基于 OpenCode CLI + Superpowers Skills + gstack + OpenSpec
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js >= 18](https://img.shields.io/badge/Node.js-%3E%3D18-green.svg)](https://nodejs.org/)
-[![Version](https://img.shields.io/badge/Version-1.0.0-orange.svg)](package.json)
+[![Version](https://img.shields.io/badge/Version-2.0.0-red.svg)](package.json)
 
 ---
 
@@ -192,18 +192,24 @@ npm run web    # 仅 Dashboard
 每个冲刺执行完成后，产出文件位于：
 
 ```
-workspace/{sprintId}/
+workspace/{sprintId}/              # 冲刺执行记录
 ├── output/              # 各角色交付物
 │   ├── prd.md
-│   ├── openspec.md
 │   ├── test-report.md
+│   ├── user-stories.md
 │   └── ...
-├── developer/           # 代码产出
-│   ├── frontend/
-│   └── backend/
+├── product/             # 产品文档
+├── architect/           # 架构文档
+├── tech-coach/          # 技术教练文档
+├── tester/              # 测试文档
 └── thinking/            # Agent 思考过程
-    ├── 01-product.json
-    └── ...
+
+projects/{projectId}/              # 项目根目录（持续演进）
+├── openspec/            # 共享 OpenSpec 仓库
+│   └── changes/         # 每次 sprint 追加新 change
+└── src/                 # 共享代码库（增量更新）
+    ├── frontend/
+    └── backend/
 ```
 
 ---
@@ -242,7 +248,8 @@ workspace/{sprintId}/
 | **Gatekeeper** | 🚪 | 路由决策 | 路由决策 + Pipeline 配置 |
 | **BA** | 📝 | 业务分析 | 业务分析报告 |
 | **Product** | 📋 | 需求分析 | PRD (JSON) |
-| **Architect** | 🏗️ | 架构设计 | OpenSpec (YAML) |
+| **Architect** | 🏗️ | 架构设计 | OpenSpec Change Proposal |
+| **Tech Coach** | 🔍 | 技术翻译 | 技术实现文档、用户故事、可行性分析 |
 | **Tech Coach** | 🔍 | 技术实现指导 | 技术实现文档 |
 | **Scout** | 🔍 | 技术可行性 | 风险评估报告 |
 | **Developer** | 💻 | 代码实现 | 前端/后端代码 |
@@ -259,9 +266,9 @@ workspace/{sprintId}/
 | 路由 | 执行顺序 | 适用场景 |
 |------|----------|----------|
 | `CRITICAL` | product → architect → creative → developer → tester → evolver | 核心/高风险功能 |
-| `BUILD` | product → architect → scout → developer → tester → ops → evolver | 从零构建新功能 |
+| `BUILD` | product → architect → tech_coach → developer → tester → ops → evolver | 从零构建新功能 |
 | `REVIEW` | creative → ghost → tester | 代码/设计审查 |
-| `QUERY` | scout | 技术可行性调研 |
+| `QUERY` | tech_coach | 技术可行性调研 |
 | `SECURITY` | ghost → architect | 安全检查 |
 
 ---
@@ -300,7 +307,7 @@ workspace/{sprintId}/
 | **Architect** | 1/4 系统架构 | `system-design` | 1.3KB | ✅ | 系统架构设计 |
 | | 2/4 API 设计 | `api-design` | 13KB | ✅ | RESTful API 规范 |
 | | 3/4 数据库设计 | `database-design` | 1.6KB | ✅ | 数据模型设计 |
-| | 4/4 OpenSpec | `system-design` | 1.3KB | ✅ | 整合架构文档 |
+| | 4/4 OpenSpec | *(OpenSpec CLI)* | - | - | 使用 CLI 创建 change proposal |
 | **Developer** | 1/8 项目结构 | *(无)* | - | - | 目录初始化 |
 | | 2/8 后端配置 | *(无)* | - | - | 依赖安装 |
 | | 3/8 用户 API | `api-design` | 13KB | ✅ | 接口规范参考 |
@@ -340,7 +347,7 @@ workspace/{sprintId}/
 
 | 场景 | Skills 工作流 |
 |------|---------------|
-| 新系统架构设计 | OpenSpec → system-design → database-design |
+| 新系统架构设计 | system-design → api-design → database-design → OpenSpec CLI |
 | 现有系统优化 | tech-debt → architecture-review |
 | 高并发改造 | event-driven → api-design |
 
@@ -369,9 +376,8 @@ workspace/{sprintId}/
 | 角色 | 输出文件 |
 |------|---------|
 | Product | `output/prd.md`, `output/product-spec.md`, `output/user-stories.md`, `output/ui-layout.md`, `output/user-journey.md` |
-| Architect | `output/openspec.md` |
+| Architect | `openspec/changes/<name>/` (proposal.md, design.md, tasks.md) |
 | Tech Coach | `tech-coach/tech-implementation.md`, `output/user-stories.md`, `output/tech-feasibility.md` |
-| Scout | `output/scout-report.md` |
 | Developer | `developer/README.md`, `developer/API.md`, `developer/dev-summary.md`, `developer/frontend/`, `developer/backend/` |
 | Tester | `output/test-report.md`, `output/security-report.md` |
 | Ops | `output/ops-config.md`, `output/Dockerfile`, `output/docker-compose.yml`, `output/.github/workflows/deploy.yml` |
@@ -498,20 +504,30 @@ DevForge/
 │   │   └── ...
 │   └── package.json
 │
-├── workspace/                        # 执行工作区（按 sprintId）
+├── workspace/                        # 冲刺执行记录（按 sprintId）
 │   └── {sprintId}/
-│       ├── pipeline.json             # 流水线状态
-│       ├── output/                   # 交付物
-│       ├── thinking/                 # 思考过程
-│       ├── developer/                # 代码产出
-│       └── ...
+│       ├── output/                   # 角色交付物（PRD、架构文档、测试报告等）
+│       ├── thinking/                 # Agent 思考过程
+│       ├── execution-log/            # 执行记录
+│       ├── product/                  # 产品文档
+│       ├── architect/                # 架构文档
+│       ├── tech-coach/               # 技术教练文档
+│       ├── tester/                   # 测试文档
+│       └── ops/                      # 运维文档
 │
-├── projects/                         # 项目数据（按 projectId）
+├── projects/                         # 项目根目录（持续演进）
 │   └── {projectId}/
-│       ├── project.json
-│       └── sprints/
-│           └── {sprintId}/
-│               └── sprint.json
+│       ├── project.json              # 项目元数据
+│       ├── sprints.json              # 冲刺列表
+│       ├── openspec/                 # 共享 OpenSpec 仓库
+│       │   └── changes/              # 每次 sprint 追加新 change
+│       │       ├── sprint-1-xxx/
+│       │       └── sprint-2-xxx/
+│       └── src/                      # 共享代码库（增量更新）
+│           ├── frontend/
+│           ├── backend/
+│           ├── README.md
+│           └── API.md
 │
 ├── docs/                             # 附加文档
 │   └── gstack-integration.md

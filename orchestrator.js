@@ -178,7 +178,7 @@ class Orchestrator {
     if (output) {
       if (role === 'architect' && output.openSpec) {
         pipeline.context.openSpec = output.openSpec;
-      } else if (role === 'scout' && output.findings) {
+      } else if (role === 'tech_coach' && output.findings) {
         pipeline.context.findings = output.findings;
       } else if (role === 'tester' && output.testReport) {
         pipeline.context.testReport = output.testReport;

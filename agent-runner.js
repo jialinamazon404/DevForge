@@ -198,8 +198,8 @@ async function saveAgentFiles(pipelineId, agentName, rawText, structured) {
       await saveToWorkspace(pipelineId, 'evolver', { 'refactor-report.md': rawText });
       break;
       
-    case 'scout':
-      await saveToWorkspace(pipelineId, 'scout', { 'findings.md': rawText });
+    case 'tech_coach':
+      await saveToWorkspace(pipelineId, 'tech_coach', { 'tech-implementation.md': rawText });
       break;
   }
 }
@@ -220,7 +220,7 @@ const AGENT_CONFIG = {
   architect: { model: 'opencode/big-pickle' },
   developer: { model: 'opencode/big-pickle' },
   tester: { model: 'opencode/big-pickle' },
-  scout: { model: 'opencode/gpt-5-nano' },
+  tech_coach: { model: 'opencode/gpt-5-nano' },
   ops: { model: 'opencode/gpt-5-nano' },
   ghost: { model: 'opencode/gpt-5-nano' },
   creative: { model: 'opencode/big-pickle' },
@@ -600,7 +600,7 @@ async function validateAgentOutput(agentName, output, pipelineId) {
       }
       break;
       
-    case 'scout':
+    case 'tech_coach':
       // 侦察报告需要包含：可行性分析、风险识别
       const hasFeasibility = /可行|feasibility|风险|risk/i.test(text);
       const hasRecommendations = /建议|recommendation|路线/i.test(text);

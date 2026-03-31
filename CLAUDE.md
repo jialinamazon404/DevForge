@@ -23,10 +23,10 @@
 │ 📋    │        │  🏗️        │         │  💻     │
 └────────┘        └────────────┘         └──────────┘
     ↓                    ↓                    ↓
-┌────────┐        ┌────────────┐        ┌──────────┐
-│ Scout  │   →   │  Tester   │   →    │   Ops    │
-│ 🔍    │        │  🧪       │         │  ⚙️     │
-└────────┘        └────────────┘         └──────────┘
+┌────────────┐    ┌────────────┐        ┌──────────┐
+│Tech Coach  │   │  Tester   │   →    │   Ops    │
+│ 🔍        │   │  🧪       │         │  ⚙️     │
+└────────────┘    └────────────┘         └──────────┘
                          ↓
               ┌────────────┐        ┌──────────┐
               │  Creative │   →    │ Evolver  │
@@ -39,8 +39,8 @@
 | 角色 | 图标 | 目标 | 输出 |
 |------|------|------|------|
 | 产品 | 📋 | 理解需求，生成 PRD | 用户故事、功能清单、验收标准 |
-| 架构师 | 🏗️ | 系统设计 | OpenSpec、API、数据模型 |
-| 侦察兵 | 🔍 | 可行性验证 | 风险评估、相似实现 |
+| 架构师 | 🏗️ | 系统设计 + OpenSpec CLI | OpenSpec Change Proposal、API、数据模型 |
+| 开发教练 | 🔍 | 整合产出，翻译为开发规格 | 技术实现文档、用户故事、可行性分析 |
 | 开发 | 💻 | 代码实现 | 源代码、测试、PR |
 | 测试 | 🧪 | 集成测试 | 测试报告、Bug 列表 |
 | 运维 | ⚙️ | 部署配置 | Dockerfile、CI/CD |
@@ -53,9 +53,9 @@
 ```javascript
 const ROUTES = {
   CRITICAL: ['product', 'architect', 'creative', 'developer', 'tester', 'evolver'],
-  BUILD:    ['product', 'architect', 'scout', 'developer', 'tester', 'ops', 'evolver'],
+  BUILD:    ['product', 'architect', 'tech_coach', 'developer', 'tester', 'ops', 'evolver'],
   REVIEW:   ['creative', 'ghost', 'tester'],
-  QUERY:    ['scout'],
+  QUERY:    ['tech_coach'],
   SECURITY: ['ghost', 'architect']
 };
 ```
@@ -89,26 +89,38 @@ const ROUTES = {
 ## workspace 结构
 
 ```
-workspace/{pipelineId}/
-├── pipeline.json        # 全局状态
+workspace/{sprintId}/              # 冲刺执行记录（轻量）
 ├── thinking/            # 思考过程
 │   ├── 01-product.json
 │   ├── 02-architect.json
 │   └── ...
 ├── output/              # 输出交付物
 │   ├── prd.md
-│   ├── openspec.md
-│   ├── scout-report.md
-│   ├── dev-summary.md
+│   ├── user-stories.md
+│   ├── tech-feasibility.md
 │   ├── test-report.md
 │   ├── ops-config.md
 │   ├── security-report.md
 │   ├── design-review.md
 │   └── evolver-report.md
-├── product/            # Agent 工作目录
-├── architect/
-├── developer/
-└── ...
+├── product/            # 产品文档
+├── architect/          # 架构设计文档
+├── tech-coach/         # 技术实现文档
+├── tester/             # 测试文档
+└── ops/                # 运维文档
+
+projects/{projectId}/              # 项目根目录（持续演进）
+├── openspec/            # 共享 OpenSpec 仓库
+│   └── changes/         # 每次 sprint 追加新 change
+│       └── <name>/
+│           ├── proposal.md
+│           ├── design.md
+│           └── tasks.md
+└── src/                 # 共享代码库（增量更新）
+    ├── frontend/
+    ├── backend/
+    ├── README.md
+    └── API.md
 ```
 
 ## API Server
@@ -136,8 +148,9 @@ workspace/{pipelineId}/
 ## 启动
 
 ```bash
-cd /Users/jialin.chen/WorkSpace/auto_pipeline
-npm start
+./start.sh    # 一键启动 (API:3000, Dashboard:5173)
+./stop.sh     # 停止
+./restart.sh  # 重启
 ```
 
 ## Agent 调用方式

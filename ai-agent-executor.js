@@ -50,7 +50,7 @@ const AGENT_MODELS = {
   architect: 'opencode/big-pickle',
   developer: 'opencode/big-pickle',
   tester: 'opencode/big-pickle',
-  scout: 'opencode/gpt-5-nano',
+  tech_coach: 'opencode/gpt-5-nano',
   ops: 'opencode/gpt-5-nano',
   ghost: 'opencode/gpt-5-nano',
   creative: 'opencode/big-pickle',
@@ -63,7 +63,7 @@ const TIMEOUT_CONFIG = {
   architect: 120000,   // 2分钟
   developer: 300000,    // 5分钟（代码实现更复杂）
   tester: 180000,
-  scout: 90000,
+  tech_coach: 90000,
   ops: 90000
 };
 
@@ -74,7 +74,7 @@ const MAX_RETRIES = 2;
 const ROLE_INFO = {
   product: { icon: '📋', name: '产品经理', name_en: 'Product Manager' },
   architect: { icon: '🏗️', name: '架构师', name_en: 'Architect' },
-  scout: { icon: '🔍', name: '侦察兵', name_en: 'Scout' },
+  tech_coach: { icon: '🔍', name: '开发教练', name_en: 'Tech Coach' },
   developer: { icon: '💻', name: '开发者', name_en: 'Developer' },
   tester: { icon: '🧪', name: '测试工程师', name_en: 'Tester' },
   ops: { icon: '⚙️', name: '运维工程师', name_en: 'DevOps' },
@@ -127,7 +127,7 @@ async function saveThinking(pipelineId, role, thinking) {
  * 获取阶段索引
  */
 function getStageIndex(role) {
-  const order = ['product', 'architect', 'scout', 'developer', 'tester', 'ops', 'ghost', 'creative', 'evolver'];
+  const order = ['product', 'architect', 'tech_coach', 'developer', 'tester', 'ops', 'ghost', 'creative', 'evolver'];
   return order.indexOf(role);
 }
 
@@ -142,7 +142,7 @@ async function saveOutput(pipelineId, role, output) {
   switch (role) {
     case 'product': fileName = 'prd.md'; break;
     case 'architect': fileName = 'openspec.md'; break;
-    case 'scout': fileName = 'scout-report.md'; break;
+    case 'tech_coach': fileName = 'tech-implementation.md'; break;
     case 'developer': fileName = 'dev-summary.md'; break;
     case 'tester': fileName = 'test-report.md'; break;
     case 'ops': fileName = 'ops-config.md'; break;
@@ -561,7 +561,7 @@ ${workspacePath || `workspace/${pipelineId}`}
 
 ## 输出格式
 
-保存为 Markdown 到: ${workspacePath || `workspace/${pipelineId}`}/scout/scout-report.md
+保存为 Markdown 到: ${workspacePath || `workspace/${pipelineId}`}/tech-coach/tech-implementation.md
 `;
 }
 
@@ -761,7 +761,7 @@ async function executeAgent(pipelineId, agentName, context = {}) {
           prd: context.prd
         });
         break;
-      case 'scout':
+      case 'tech_coach':
         prompt = generateScoutPrompt({
           pipelineId,
           rawInput: context.rawInput || context.request?.rawInput || '',

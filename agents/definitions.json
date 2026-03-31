@@ -11,7 +11,7 @@
         "route": "CRITICAL|BUILD|REVIEW|QUERY|SECURITY",
         "pipeline": {
           "id": "uuid",
-          "stages": ["product", "architect", "scout", "developer", "tester", "ops", "evolver"],
+          "stages": ["product", "architect", "tech_coach", "developer", "tester", "ops", "evolver"],
           "context": {}
         }
       },
@@ -107,20 +107,20 @@
         "0": "system-design",
         "1": "api-design",
         "2": "database-design",
-        "3": "system-design"
+        "3": null
       },
       "steps": [
         {"id": 1, "name": "系统架构设计", "prompt": "基于 PRD 设计系统架构，包含组件划分、技术栈选型"},
         {"id": 2, "name": "API 接口设计", "prompt": "设计 RESTful API 接口规范"},
         {"id": 3, "name": "数据库模型设计", "prompt": "设计数据库表结构和关系"},
-        {"id": 4, "name": "技术选型总结", "prompt": "总结技术选型决策，生成 OpenSpec 文档"}
+        {"id": 4, "name": "OpenSpec Change Proposal", "prompt": "使用 OpenSpec CLI 创建 change proposal（proposal.md, design.md, tasks.md）"}
       ],
       "scenarios": {
         "新系统架构设计": {
           "description": "从零开始设计新系统架构",
-          "skills": ["OpenSpec", "system-design", "database-design", "document"],
-          "workflow": ["principal-architect", "system-design", "database-design", "document"],
-          "output": "完整的系统架构设计文档"
+          "skills": ["system-design", "api-design", "database-design"],
+          "workflow": ["system-design", "api-design", "database-design", "openspec-cli"],
+          "output": "系统架构设计文档 + OpenSpec change proposal"
         },
         "现有系统架构优化": {
           "description": "对现有系统进行架构优化和重构",
@@ -276,34 +276,39 @@
       },
       "output_files": {
         "devSummary": {
-          "path": "developer/dev-summary.md",
+          "path": "src/dev-summary.md",
           "description": "开发摘要文档",
           "type": "markdown",
-          "required": true
+          "required": true,
+          "source": "project"
         },
         "readme": {
-          "path": "developer/README.md",
+          "path": "src/README.md",
           "description": "运行说明",
           "type": "markdown",
-          "category": "code"
+          "category": "code",
+          "source": "project"
         },
         "apiDoc": {
-          "path": "developer/API.md",
+          "path": "src/API.md",
           "description": "接口文档",
           "type": "markdown",
-          "category": "code"
+          "category": "code",
+          "source": "project"
         },
         "frontend": {
-          "path": "developer/frontend/",
+          "path": "src/frontend/",
           "description": "前端代码目录",
           "type": "directory",
-          "category": "code"
+          "category": "code",
+          "source": "project"
         },
         "backend": {
-          "path": "developer/backend/",
+          "path": "src/backend/",
           "description": "后端代码目录",
           "type": "directory",
-          "category": "code"
+          "category": "code",
+          "source": "project"
         }
       }
     },
@@ -534,9 +539,9 @@
   },
   "routes": {
     "CRITICAL": ["product", "architect", "creative", "developer", "tester", "evolver"],
-    "BUILD": ["product", "architect", "scout", "developer", "tester", "ops", "evolver"],
+    "BUILD": ["product", "architect", "tech_coach", "developer", "tester", "ops", "evolver"],
     "REVIEW": ["creative", "ghost", "tester"],
-    "QUERY": ["scout"],
+    "QUERY": ["tech_coach"],
     "SECURITY": ["ghost", "architect"]
   }
 }

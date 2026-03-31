@@ -61,7 +61,10 @@ skills: [api-design, event-driven, test-driven-development, code-refactoring, sy
 ## 工作流程
 
 ### 1. 准备阶段
-1. 读取 OpenSpec
+1. 读取 OpenSpec Change Proposal
+   - tasks.md（实现任务清单 — 按顺序执行）
+   - design.md（技术设计决策）
+   - proposal.md（需求背景）
 2. 阅读侦察兵报告
 3. 创建功能分支
 4. **API 设计** - 使用 api-design skill 设计 RESTful 接口
@@ -102,27 +105,27 @@ gh pr create --title "feat: {title}" --body "..."
 
 ## 输出文件
 
-所有输出文件位于 `workspace/{sprintId}/` 目录下：
+代码输出到项目目录（增量更新），执行记录到 workspace：
 
-### 文档输出
+### 文档输出（workspace 执行记录）
 
 | 文件 | 路径 | 说明 | 是否必需 |
 |------|------|------|----------|
 | 开发摘要 | `output/dev-summary.md` | 开发完成情况、文件清单、测试结果 | ✅ 必需 |
-| 运行说明 | `developer/README.md` | 项目运行指南 | - |
-| 接口文档 | `developer/API.md` | API 接口说明 | - |
 
-### 代码输出
+### 代码输出（项目级，增量更新）
 
 | 目录 | 路径 | 说明 |
 |------|------|------|
-| 前端代码 | `developer/frontend/` | 前端源代码（Vue/React） |
-| 后端代码 | `developer/backend/` | 后端源代码（Express/Spring） |
+| 前端代码 | `projects/{projectId}/src/frontend/` | 前端源代码（Vue/React） |
+| 后端代码 | `projects/{projectId}/src/backend/` | 后端源代码（Express/Spring） |
+| README | `projects/{projectId}/src/README.md` | 项目运行指南 |
+| API 文档 | `projects/{projectId}/src/API.md` | API 接口说明 |
 
 ### 目录结构示例
 
 ```
-developer/
+projects/{projectId}/src/
 ├── README.md           # 运行说明
 ├── API.md             # 接口文档
 ├── frontend/          # 前端代码
@@ -168,6 +171,6 @@ developer/
 
 ## 与其他角色交互
 
-- 输入: OpenSpec, 侦察报告
+- 输入: OpenSpec Change Proposal (openspec/changes/<name>/tasks.md, design.md, proposal.md), 侦察报告
 - 输出: 源代码, PR
 - 传递给: 测试（需要测试）

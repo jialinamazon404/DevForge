@@ -21,6 +21,7 @@ import { io } from 'socket.io-client';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = __dirname;
 const WORKSPACE = path.join(ROOT, 'workspace');
+const PROJECTS = path.join(ROOT, 'projects');
 
 // 从命令行参数获取 API_BASE，或使用默认值
 const API_BASE = process.argv.find(arg => arg.startsWith('API_BASE='))?.split('=')[1] || 'http://localhost:3000';
@@ -135,7 +136,7 @@ const ROLE_STEP_SKILLS = {
     'system-design',          // 步骤 1/4: 系统架构设计 (1.3KB)
     'api-design',             // 步骤 2/4: API 接口设计 (13KB)
     'database-design',        // 步骤 3/4: 数据库模型设计 (1.6KB)
-    'system-design'           // 步骤 4/4: 生成 OpenSpec (1.3KB)
+    null                      // 步骤 4/4: OpenSpec CLI 生成 change proposal（不需要 skill 注入）
   ],
   developer: [
     null,                     // 步骤 1/6: 项目结构搭建
@@ -734,7 +735,7 @@ function getStepGuidance(role, stepIndex) {
       '## 步骤 1/4: 系统架构设计\n专注于设计系统架构图、技术栈选型、组件划分。输出到 output/architect-step1.md',
       '## 步骤 2/4: API 接口设计\n基于架构设计 RESTful API 规范。输出到 output/architect-step2.md',
       '## 步骤 3/4: 数据库模型设计\n设计数据库表结构和关系。输出到 output/architect-step3.md',
-      '## 步骤 4/4: 生成 OpenSpec\n整合前几步，生成完整的 openspec.yaml'
+      '## 步骤 4/4: OpenSpec Change Proposal\n使用 OpenSpec CLI 创建规范的 change proposal。执行: openspec init --tools opencode, openspec new change "<name>", openspec instructions, openspec validate'
     ],
     developer: [
       '## 步骤 1/6: 项目结构搭建\n根据技术文档创建项目目录结构、初始化 Git。输出到 developer/',
@@ -761,8 +762,111 @@ function getStepGuidance(role, stepIndex) {
 /**
  * 生成 Architect Agent 的提示词 - 直接选择方案并生成架构，不提问
  */
-function generateArchitectPrompt(context) {
-  const { pipelineId, rawInput, workspacePath, prd, stepIndex } = context;
+async function generateArchitectPrompt(context) {
+  const { pipelineId, rawInput, workspacePath, prd, stepIndex, projectPath } = context;
+  
+  // 步骤 4 需要读取前三步的产出文件
+  let step1Output = '', step2Output = '', step3Output = '';
+  if (stepIndex === 3) {
+    try {
+      step1Output = await fs.readFile(path.join(workspacePath, 'output/architect-step1.md'), 'utf-8');
+    } catch (e) { step1Output = '未找到（步骤 1 可能未执行或未保存）'; }
+    try {
+      step2Output = await fs.readFile(path.join(workspacePath, 'output/architect-step2.md'), 'utf-8');
+    } catch (e) { step2Output = '未找到（步骤 2 可能未执行或未保存）'; }
+    try {
+      step3Output = await fs.readFile(path.join(workspacePath, 'output/architect-step3.md'), 'utf-8');
+    } catch (e) { step3Output = '未找到（步骤 3 可能未执行或未保存）'; }
+  }
+  
+  const previousStepsContext = stepIndex === 3 ? `
+## 前三步架构设计产出（必须读取并整合到 OpenSpec artifacts 中）
+
+### 步骤 1：系统架构设计
+\`\`\`
+${step1Output}
+\`\`\`
+
+### 步骤 2：API 接口设计
+\`\`\`
+${step2Output}
+\`\`\`
+
+### 步骤 3：数据库模型设计
+\`\`\`
+${step3Output}
+\`\`\`
+
+**重要**: 以上是你之前生成的架构设计产出，创建 OpenSpec artifacts 时必须基于这些实际内容：
+- design.md 必须整合步骤 1 的系统架构 + 步骤 2 的 API 设计 + 步骤 3 的数据库设计
+- tasks.md 的任务必须覆盖以上所有设计内容
+- 不要凭空编造，要忠实反映前三步的实际设计决策
+` : '';
+  
+  const openSpecInit = stepIndex === 3 ? `
+### 1. 初始化 OpenSpec 环境（如果项目还没有 OpenSpec）
+切换到项目目录: \`cd ${projectPath || `projects/${pipelineId}`}\`
+检查是否存在 \`openspec/spec.json\` 或 \`openspec/\` 目录：
+- 如果不存在: \`openspec init --tools opencode --no-color\`
+- 如果已存在: 跳过此步骤
+` : '';
+
+  const openSpecCreate = stepIndex === 3 ? `
+### 2. 创建 change proposal
+切换到项目目录: \`cd ${projectPath || `projects/${pipelineId}`}\`
+基于 PRD 和前 3 步的架构设计，创建 change：
+\`\`\`bash
+openspec new change "<feature-name>" --description "<一句话描述>"
+\`\`\`
+feature-name 格式: \`sprint-N-short-desc\`（如 "sprint-1-user-auth", "sprint-2-payment"）
+description 简要描述本次迭代内容。
+` : '';
+
+  const openSpecStatus = stepIndex === 3 ? `
+### 3. 获取 artifact 构建顺序
+\`\`\`bash
+openspec status --change "<feature-name>" --json
+\`\`\`
+从 JSON 中获取 applyRequires（需要哪些 artifacts 才能开始实现）。
+` : '';
+
+  const openSpecArtifacts = stepIndex === 3 ? `
+### 4. 按依赖顺序创建 artifacts
+对每个 artifact：
+\`\`\`bash
+openspec instructions <artifact-id> --change "<feature-name>" --json
+\`\`\`
+从 instructions JSON 获取 template 和 rules，创建对应文件：
+- **proposal.md** — 变更描述、需求、影响范围（需求来源: PRD）
+- **design.md** — 技术设计决策（整合步骤 1 的系统架构 + 步骤 2 的 API 设计 + 步骤 3 的数据库设计）
+- **tasks.md** — 实现任务清单（基于 design.md，细化为可执行的开发任务，供开发者按顺序执行）
+` : '';
+
+  const openSpecValidate = stepIndex === 3 ? `
+### 5. 验证 change proposal
+\`\`\`bash
+openspec validate "<feature-name>"
+openspec status --change "<feature-name>"
+\`\`\`
+确保所有 applyRequires artifacts 状态为 done。
+` : '';
+
+  const openSpecOutput = stepIndex === 3 ? `
+## 输出要求
+- OpenSpec change 目录: \`${projectPath || `projects/${pipelineId}`}/openspec/changes/<feature-name>/\`
+- 包含 proposal.md, design.md, tasks.md 等标准 artifacts
+- 确保 \`openspec status\` 显示所有 applyRequires artifacts 为 done 状态
+` : '';
+
+  const openSpecFallback = stepIndex === 3 ? `
+- 如果 openspec CLI 不可用，降级为手动创建目录结构:
+  \`\`\`
+  ${projectPath || `projects/${pipelineId}`}/openspec/changes/<feature-name>/
+  ├── proposal.md
+  ├── design.md
+  └── tasks.md
+  \`\`\`
+` : '';
   
   const stepPrompts = [
     `# 角色：架构师 - 步骤 1/4：系统架构设计
@@ -820,26 +924,34 @@ ${workspacePath || `workspace/${pipelineId}`}
 
 保存到: \`${workspacePath || `workspace/${pipelineId}`}/output/architect-step3.md\`
 `,
-    `# 角色：架构师 - 步骤 4/4：生成 OpenSpec
+    `# 角色：架构师 - 步骤 4/4：OpenSpec Change Proposal
 
 ## 用户原始需求
 ${rawInput}
 
 ## PRD 文档
 ${prd || '无'}
+${previousStepsContext}
 
 ## 工作目录
 ${workspacePath || `workspace/${pipelineId}`}
 
 ## 你的任务
-整合前几步的设计，生成完整的 OpenSpec 架构文档。
+使用 OpenSpec CLI 工具创建规范的 change proposal，作为下游开发教练和开发者的标准依据。
 
-## 技术选型决策规则
-根据需求复杂度自动选择最合适的方案。
+## 执行步骤
+${openSpecInit}
+${openSpecCreate}
+${openSpecStatus}
+${openSpecArtifacts}
+${openSpecValidate}
+${openSpecOutput}
 
-## 输出要求
-1. 保存为 YAML 格式到: ${workspacePath || `workspace/${pipelineId}`}/architect/openspec.yaml
-2. 保存架构图到: ${workspacePath || `workspace/${pipelineId}`}/architect/architecture.md
+## 注意
+- 技术选型已在前面的步骤中确定，直接使用
+- proposal.md 的需求来源: PRD 文档
+- design.md 的技术设计来源: 前三步架构设计产出（见上方）
+- tasks.md 的任务拆解: 基于 design.md，细化为可执行的开发任务${openSpecFallback}
 `
   ];
 
@@ -860,10 +972,11 @@ ${workspacePath || `workspace/${pipelineId}`}
  * 作用：整合产品和架构的产出，输出技术实现文档（分前后端），减少开发者思考负担
  */
 function generateTechCoachPrompt(context) {
-  const { pipelineId, rawInput, workspacePath, prdOutput, openspec } = context;
+  const { pipelineId, rawInput, workspacePath, prdOutput, openspec, openspecChangeDir } = context;
   
   const prdContext = prdOutput ? `\n## 产品产出（PRD）\n${prdOutput.slice(0, 3000)}` : '';
   const specContext = openspec ? `\n## 架构产出（OpenSpec）\n${openspec.slice(0, 3000)}` : '';
+  const openspecChangeContext = openspecChangeDir ? `\n## OpenSpec Change Proposal\nChange 目录: ${openspecChangeDir}\n请读取以下文件作为技术实现的权威依据:\n- proposal.md（需求定义）\n- design.md（技术设计）\n- tasks.md（任务清单）` : '';
   
   return `# 角色：开发教练 (Tech Coach)
 
@@ -871,6 +984,7 @@ function generateTechCoachPrompt(context) {
 ${rawInput}
 ${prdContext}
 ${specContext}
+${openspecChangeContext}
 
 ## 工作目录
 ${workspacePath || `workspace/${pipelineId}`}
@@ -885,7 +999,7 @@ ${workspacePath || `workspace/${pipelineId}`}
 - 从用户故事中转化为开发任务
 
 ### 2. 整合架构产出
-- 从 OpenSpec 中确认技术选型
+- 从 OpenSpec Change Proposal 中确认技术选型和设计决策
 - 从 API 接口设计中补充遗漏接口
 - 从数据库模型中补充表设计建议
 
@@ -924,10 +1038,19 @@ ${workspacePath || `workspace/${pipelineId}`}
  * 生成 Developer Agent 的提示词 - 根据 tech_coach 产出动态生成步骤
  */
 function generateDeveloperPrompt(context) {
-  const { pipelineId, rawInput, workspacePath, openspec, techCoachOutput, stepIndex } = context;
+  const { pipelineId, rawInput, workspacePath, openspec, openspecChangeDir, techCoachOutput, stepIndex, projectPath, codePath } = context;
   
   let specContext = '';
-  if (openspec) {
+  if (openspecChangeDir) {
+    specContext = `
+## OpenSpec Change Proposal
+Change 目录: ${openspecChangeDir}
+请读取以下文件作为开发的权威依据:
+- tasks.md（实现任务清单 — 按顺序执行）
+- design.md（技术设计决策）
+- proposal.md（需求背景）
+`;
+  } else if (openspec) {
     specContext = `
 ## OpenSpec（架构师产出）
 ${typeof openspec === 'string' ? openspec.slice(0, 5000) : JSON.stringify(openspec, null, 2).slice(0, 5000)}
@@ -942,6 +1065,8 @@ ${typeof techCoachOutput === 'string' ? techCoachOutput.slice(0, 5000) : JSON.st
 `;
   }
   
+  const projectDir = codePath || path.join(projectPath || `projects/${pipelineId}`, 'src');
+  
   const stepPrompts = [
     `# 角色：开发者 - 步骤 1/6：项目结构搭建
 
@@ -951,7 +1076,7 @@ ${specContext}
 ${techContext}
 
 ## 工作目录
-${workspacePath || `workspace/${pipelineId}`}/developer
+${projectDir}
 
 ## 你的任务
 根据技术实现文档和 OpenSpec，创建项目目录结构：
@@ -961,12 +1086,12 @@ ${workspacePath || `workspace/${pipelineId}`}/developer
 4. 创建基础配置文件
 
 ## 输出要求
-- 创建 developer/ 目录结构（前后端分离或单体，根据技术文档决定）
+- 创建 ${projectDir}/ 目录结构（前后端分离或单体，根据技术文档决定）
 - package.json（前端+后端，根据技术栈决定）
 - .gitignore
 - 基础配置文件（数据库配置、环境变量等）
 
-保存到: \`${workspacePath || `workspace/${pipelineId}`}/developer/\`
+保存到: \`${projectDir}/\`
 `,
     `# 角色：开发者 - 步骤 2/6：后端基础配置
 
@@ -976,24 +1101,22 @@ ${specContext}
 ${techContext}
 
 ## 工作目录
-${workspacePath || `workspace/${pipelineId}`}/developer
+${projectDir}
 
 ## 你的任务
-根据技术实现文档的后端部分，配置后端基础：
-1. 创建后端 package.json，安装所需依赖
-2. 创建后端入口文件
+创建后端基础配置：
+1. 创建后端 package.json
+2. 安装后端依赖
 3. 配置数据库连接
-4. 配置基础中间件（CORS、body-parser、日志等）
-5. 配置认证基础（JWT/Session）
+4. 配置中间件
 
 ## 输出要求
-- 后端 package.json 和依赖
-- 后端入口文件
-- 数据库连接配置
-- 基础中间件配置
-- 认证基础配置
+- 后端 package.json
+- 依赖安装完成
+- 数据库配置文件
+- 中间件配置
 
-保存到: \`${workspacePath || `workspace/${pipelineId}`}/developer/backend/\`
+保存到: \`${projectDir}/backend/\`
 `,
     `# 角色：开发者 - 步骤 3/6：后端 API 实现
 
@@ -1003,23 +1126,22 @@ ${specContext}
 ${techContext}
 
 ## 工作目录
-${workspacePath || `workspace/${pipelineId}`}/developer
+${projectDir}
 
 ## 你的任务
-根据技术实现文档的后端 API 清单和 OpenSpec 中的 API 设计，实现所有后端接口：
-1. 实现所有业务 API 路由
+根据技术文档 API 清单实现所有后端接口：
+1. 创建路由定义
 2. 实现控制器逻辑
-3. 实现数据模型
-4. 实现认证和权限控制
-5. 实现错误处理和验证
+3. 实现数据访问层
+4. 添加错误处理
 
 ## 输出要求
-- 所有 API 路由文件
-- 所有控制器文件
-- 所有数据模型文件
-- 中间件（认证、验证、错误处理）
+- 所有 API 端点实现
+- 路由配置
+- 控制器
+- 数据访问层
 
-保存到: \`${workspacePath || `workspace/${pipelineId}`}/developer/backend/\`
+保存到: \`${projectDir}/backend/\`
 `,
     `# 角色：开发者 - 步骤 4/6：前端基础配置
 
@@ -1029,25 +1151,22 @@ ${specContext}
 ${techContext}
 
 ## 工作目录
-${workspacePath || `workspace/${pipelineId}`}/developer
+${projectDir}
 
 ## 你的任务
-根据技术实现文档的前端部分，配置前端基础：
-1. 创建前端项目结构
-2. 安装所需依赖（UI 框架、路由、状态管理等）
-3. 配置路由（根据页面路由规划）
+创建前端项目：
+1. 创建前端 package.json
+2. 安装前端依赖
+3. 配置路由
 4. 配置状态管理
-5. 配置 API 请求封装
-6. 创建基础布局组件
 
 ## 输出要求
-- 前端 package.json 和依赖
+- 前端 package.json
+- 依赖安装完成
 - 路由配置
 - 状态管理配置
-- API 请求封装
-- 基础布局组件
 
-保存到: \`${workspacePath || `workspace/${pipelineId}`}/developer/frontend/\`
+保存到: \`${projectDir}/frontend/\`
 `,
     `# 角色：开发者 - 步骤 5/6：前端页面实现
 
@@ -1057,24 +1176,22 @@ ${specContext}
 ${techContext}
 
 ## 工作目录
-${workspacePath || `workspace/${pipelineId}`}/developer
+${projectDir}
 
 ## 你的任务
-根据技术实现文档的前端组件结构和产品界面布局，实现所有前端页面：
-1. 实现所有页面组件
-2. 实现业务组件
-3. 实现表单和验证
-4. 对接后端 API
-5. 实现响应式布局
+根据产品界面布局实现所有前端页面：
+1. 创建页面组件
+2. 实现组件交互
+3. 连接 API
+4. 添加状态管理
 
 ## 输出要求
 - 所有页面组件
-- 业务组件
-- 表单和验证组件
-- API 调用逻辑
-- 响应式样式
+- 组件交互逻辑
+- API 调用
+- 状态管理
 
-保存到: \`${workspacePath || `workspace/${pipelineId}`}/developer/frontend/\`
+保存到: \`${projectDir}/frontend/\`
 `,
     `# 角色：开发者 - 步骤 6/6：生成开发文档
 
@@ -1084,20 +1201,20 @@ ${specContext}
 ${techContext}
 
 ## 工作目录
-${workspacePath || `workspace/${pipelineId}`}/developer
+${projectDir}
 
 ## 你的任务
-生成完整的开发文档：
-1. README.md - 项目说明文档（安装、运行、部署）
-2. API.md - API 接口文档（所有接口说明）
+生成项目文档：
+1. README.md（项目说明）
+2. API.md（API 文档）
+3. 项目说明文档
 
 ## 输出要求
-生成以下文件（必须完整）：
-- developer/README.md - 项目说明
-- developer/API.md - 接口文档
-- developer/dev-summary.md - 开发摘要
+- README.md
+- API.md
+- 项目说明
 
-保存到: \`${workspacePath || `workspace/${pipelineId}`}/developer/\`
+保存到: \`${projectDir}/README.md\`, \`${projectDir}/API.md\`, \`${projectDir}/dev-summary.md\`
 `
   ];
 
@@ -1114,8 +1231,9 @@ ${workspacePath || `workspace/${pipelineId}`}/developer
  * 生成 Tester Agent 的提示词
  */
 function generateTesterPrompt(context) {
-  const { pipelineId, rawInput, workspacePath, stepIndex, testEnvironmentUrl } = context;
+  const { pipelineId, rawInput, workspacePath, projectPath, stepIndex, testEnvironmentUrl } = context;
   const hasEnvironment = !!testEnvironmentUrl;
+  const codeDir = path.join(projectPath || `projects/${pipelineId}`, 'src');
   
   const stepPrompts = [
     `# 角色：测试工程师 - 步骤 1/4：功能测试用例设计
@@ -1124,7 +1242,7 @@ function generateTesterPrompt(context) {
 ${rawInput}
 
 ## 代码位置
-${workspacePath || `workspace/${pipelineId}`}/developer
+${codeDir}
 
 ## 你的任务
 基于 PRD 和 OpenSpec 设计功能测试用例。
@@ -1142,7 +1260,7 @@ ${workspacePath || `workspace/${pipelineId}`}/developer
 ${rawInput}
 
 ## 代码位置
-${workspacePath || `workspace/${pipelineId}`}/developer
+${codeDir}
 
 ## 你的任务
 ${hasEnvironment 
@@ -1183,7 +1301,7 @@ ${hasEnvironment
 ${rawInput}
 
 ## 代码位置
-${workspacePath || `workspace/${pipelineId}`}/developer
+${codeDir}
 
 ## 你的任务
 ${hasEnvironment 
@@ -1221,7 +1339,7 @@ ${hasEnvironment ? '✅ 测试环境已提供: ' + testEnvironmentUrl : '⚠️ 
 ${rawInput}
 
 ## 代码位置
-${workspacePath || `workspace/${pipelineId}`}/developer
+${codeDir}
 
 ## 测试环境
 ${hasEnvironment ? '✅ 已提供: ' + testEnvironmentUrl : '⚠️ 未提供（静态审查模式）'}
@@ -1266,7 +1384,8 @@ ${hasEnvironment
  * 生成 Ops Agent 的提示词
  */
 function generateOpsPrompt(context) {
-  const { pipelineId, rawInput, workspacePath, developerOutput, stepIndex } = context;
+  const { pipelineId, rawInput, workspacePath, developerOutput, stepIndex, projectPath } = context;
+  const codeDir = path.join(projectPath || `projects/${pipelineId}`, 'src');
   
   const stepPrompts = [
     `# 角色：运维工程师 - 步骤 1/4：环境分析
@@ -1275,7 +1394,7 @@ function generateOpsPrompt(context) {
 ${rawInput}
 
 ## 开发者产出位置
-${workspacePath || `workspace/${pipelineId}`}/developer
+${codeDir}
 
 ## 你的任务
 1. 理解部署环境需求
@@ -1297,7 +1416,7 @@ ${workspacePath || `workspace/${pipelineId}`}/developer
 ${rawInput}
 
 ## 开发者产出位置
-${workspacePath || `workspace/${pipelineId}`}/developer
+${codeDir}
 
 ## 你的任务
 1. 为前端项目生成 Dockerfile
@@ -1319,7 +1438,7 @@ ${workspacePath || `workspace/${pipelineId}`}/developer
 ${rawInput}
 
 ## 开发者产出位置
-${workspacePath || `workspace/${pipelineId}`}/developer
+${codeDir}
 
 ## 你的任务
 1. 创建 GitHub Actions 工作流
@@ -1341,7 +1460,7 @@ ${workspacePath || `workspace/${pipelineId}`}/developer
 ${rawInput}
 
 ## 开发者产出位置
-${workspacePath || `workspace/${pipelineId}`}/developer
+${codeDir}
 
 ## 你的任务
 1. 编写部署脚本 (deploy.sh)
@@ -1406,11 +1525,12 @@ async function executeAgent(pipelineId, agentName, context = {}) {
         });
         break;
       case 'architect':
-        prompt = generateArchitectPrompt({
+        prompt = await generateArchitectPrompt({
           pipelineId,
           rawInput: context.rawInput || context.request?.rawInput || '',
           workspacePath: `workspace/${pipelineId}`,
-          prd: context.prd
+          prd: context.prd,
+          stepIndex: null
         });
         break;
       case 'developer':
@@ -1418,7 +1538,10 @@ async function executeAgent(pipelineId, agentName, context = {}) {
           pipelineId,
           rawInput: context.rawInput || context.request?.rawInput || '',
           workspacePath: `workspace/${pipelineId}`,
+          projectPath: context.projectPath,
+          codePath: context.codePath,
           openspec: context.openspec,
+          openspecChangeDir: context.openspecChangeDir,
           techCoachOutput: context.techCoachOutput
         });
         break;
@@ -1529,6 +1652,20 @@ async function executeAgent(pipelineId, agentName, context = {}) {
 }
 
 /**
+ * 查找 OpenSpec change 目录
+ */
+async function findOpenSpecChangeDir(projectPath) {
+  const changesDir = path.join(projectPath, 'openspec', 'changes');
+  try {
+    const changes = await fs.readdir(changesDir);
+    if (changes.length > 0) {
+      return path.join(changesDir, changes[0]);
+    }
+  } catch (e) {}
+  return null;
+}
+
+/**
  * 执行 Sprint 迭代
  */
 // 定义每个角色的步骤数
@@ -1558,17 +1695,23 @@ async function runIteration(sprintId, roleIndex, customModel = null, startStep =
   console.log(`📋 角色: ${sprint.iterations[roleIndex]?.role}`);
   
   // 收集上下文（用于传递给后续 Agent）
+  const projectId = sprint.projectId || sprintId;
   const context = {
     sprintId,
+    projectId,
     roleIndex,
     rawInput: sprint.rawInput,
     localProjectPath: sprint.localProjectPath || null,
     prdOutput: null,
     openspec: null,
+    openspecChangeDir: null,
     developerOutput: null,
     codePaths: null,
     previousOutput: null,
-    workspacePath: path.join(ROOT, 'workspace', sprintId)
+    workspacePath: path.join(ROOT, 'workspace', sprintId),
+    projectPath: path.join(ROOT, 'projects', projectId),
+    codePath: path.join(ROOT, 'projects', projectId, 'src'),
+    openspecPath: path.join(ROOT, 'projects', projectId, 'openspec')
   };
 
   // 获取 workspace 路径
@@ -1582,6 +1725,8 @@ async function runIteration(sprintId, roleIndex, customModel = null, startStep =
         context.prdOutput = prevIteration.output;
       } else if (prevIteration.role === 'architect') {
         context.openspec = prevIteration.output;
+        // 扫描 OpenSpec change 目录
+        context.openspecChangeDir = await findOpenSpecChangeDir(context.projectPath);
       } else if (prevIteration.role === 'developer') {
         context.developerOutput = prevIteration.output;
       }
@@ -1633,7 +1778,7 @@ async function runIteration(sprintId, roleIndex, customModel = null, startStep =
       });
       break;
     case 'architect':
-      prompt = generateArchitectPrompt({
+      prompt = await generateArchitectPrompt({
         sprintId,
         rawInput: context.rawInput,
         workspacePath,
@@ -1647,7 +1792,8 @@ async function runIteration(sprintId, roleIndex, customModel = null, startStep =
         rawInput: context.rawInput,
         workspacePath,
         prdOutput: context.prdOutput,
-        openspec: context.openspec
+        openspec: context.openspec,
+        openspecChangeDir: context.openspecChangeDir
       });
       break;
     case 'developer':
@@ -1656,6 +1802,7 @@ async function runIteration(sprintId, roleIndex, customModel = null, startStep =
         rawInput: context.rawInput,
         workspacePath,
         openspec: context.openspec,
+        openspecChangeDir: context.openspecChangeDir,
         techCoachOutput: context.techCoachOutput,
         stepIndex: stepIdx
       });

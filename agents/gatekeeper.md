@@ -21,10 +21,10 @@ tools: [state_read, state_write, decision_logic]
 ```
 请求类型 → 路由路径
 ├── CRITICAL → [architect, creative, developer, tester, evolver]
-├── BUILD    → [architect, scout, developer, tester, ops, evolver]
+├── BUILD    → [architect, tech_coach, developer, tester, ops, evolver]
 ├── REVIEW   → [creative, ghost, tester]
-├── QUERY    → [scout, receptionist_response]
-└── SECURITY → [ghost, architect_emergency]
+├── QUERY    → [tech_coach, receptionist_response]
+└── SECURITY → [ghost, architect]
 ```
 
 ## 状态机结构
@@ -33,7 +33,7 @@ tools: [state_read, state_write, decision_logic]
 {
   "pipelineId": "uuid",
   "status": "pending|running|completed|failed|stopped",
-  "currentStage": "pending|architect|scout|developer|tester|ops|ghost|creative|evolver|done",
+  "currentStage": "pending|architect|tech_coach|developer|tester|ops|ghost|creative|evolver|done",
   "category": "BUILD|REVIEW|QUERY|SECURITY|CRITICAL",
   "priority": "LOW|MEDIUM|HIGH|CRITICAL",
   "createdAt": "ISO8601",
@@ -65,9 +65,9 @@ tools: [state_read, state_write, decision_logic]
 function route(category) {
   const routes = {
     CRITICAL: ['architect', 'creative', 'developer', 'tester', 'evolver'],
-    BUILD: ['architect', 'scout', 'developer', 'tester', 'ops', 'evolver'],
+    BUILD: ['architect', 'tech_coach', 'developer', 'tester', 'ops', 'evolver'],
     REVIEW: ['creative', 'ghost', 'tester'],
-    QUERY: ['scout'],
+    QUERY: ['tech_coach'],
     SECURITY: ['ghost', 'architect']
   };
   return routes[category] || routes.BUILD;

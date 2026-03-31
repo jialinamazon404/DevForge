@@ -53,11 +53,13 @@ export class StateManager {
       category: request.category,
       priority: request.priority || 'MEDIUM',
       rawInput: request.rawInput,
+      projectId: request.projectId || id,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       context: {
         request,
         workspacePath: `workspace/${id}`,
+        projectPath: `projects/${request.projectId || id}`,
         openSpec: null,
         findings: [],
         artifacts: {},
