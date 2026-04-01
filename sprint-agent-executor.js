@@ -851,7 +851,7 @@ function getStepGuidance(role, stepIndex) {
  * 生成 Architect Agent 的提示词 - 直接选择方案并生成架构，不提问
  */
 async function generateArchitectPrompt(context) {
-  const { pipelineId, rawInput, workspacePath, prd, stepIndex, projectPath } = context;
+  const { pipelineId, rawInput, workspacePath, prd, stepIndex, projectPath, codePath } = context;
   
   // 步骤 5 需要读取前 4 步的产出文件
   let step1Output = '', step2Output = '', step3Output = '', step4Output = '';
