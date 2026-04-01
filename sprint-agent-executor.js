@@ -941,15 +941,17 @@ openspec status --change "<feature-name>"
 
   const openSpecOutput = stepIndex === 4 ? `
 ## 输出要求
-- OpenSpec change 目录: \`${projectPath || `projects/${pipelineId}`}/openspec/changes/<feature-name>/\`
+- OpenSpec change 目录: projects/<pipelineId>/openspec/changes/<feature-name>/
 - 包含 proposal.md, design.md, tasks.md 等标准 artifacts
-- 确保 \`openspec status\` 显示所有 applyRequires artifacts 为 done 状态
+- 确保 openspec status 显示所有 applyRequires artifacts 为 done 状态
 
 ## 项目目录初始化（必须执行）
 完成 OpenSpec change 后，**必须**使用 Bash mkdir 命令创建项目代码目录结构：
 
-```
-${projectPath || `projects/${pipelineId}`}/src/
+请在 projects/<pipelineId>/src/ 目录下创建以下结构：
+
+\`\`\`
+src/
 ├── backend/
 │   ├── src/
 │   │   ├── routes/
@@ -966,13 +968,15 @@ ${projectPath || `projects/${pipelineId}`}/src/
     │   ├── api/
     │   └── store/
     └── package.json
-```
+\`\`\`
 
 **必须执行以下 Bash 命令创建目录**:
-```bash
-mkdir -p ${projectPath || `projects/${pipelineId}`}/src/backend/src/{routes,models,middleware,utils,data}
-mkdir -p ${projectPath || `projects/${pipelineId}`}/src/frontend/src/{pages,components,api,store}
-```
+\`\`\`bash
+mkdir -p projects/<pipelineId>/src/backend/src/{routes,models,middleware,utils,data}
+mkdir -p projects/<pipelineId>/src/frontend/src/{pages,components,api,store}
+\`\`\`
+
+将 <pipelineId> 替换为实际的项目 ID（如 0409e4e9-87aa-4113-8416-0373a52dab10）。
 
 然后继续 OpenSpec 步骤。
 ` : '';
@@ -980,7 +984,7 @@ mkdir -p ${projectPath || `projects/${pipelineId}`}/src/frontend/src/{pages,comp
   const openSpecFallback = stepIndex === 4 ? `
 - 如果 openspec CLI 不可用，降级为手动创建目录结构:
   \`\`\`
-  ${projectPath || `projects/${pipelineId}`}/openspec/changes/<feature-name>/
+  projects/<pipelineId>/openspec/changes/<feature-name>/
   ├── proposal.md
   ├── design.md
   └── tasks.md
