@@ -2037,8 +2037,8 @@ async function main() {
   const args = process.argv.slice(2);
   const sprintId = args[0];
   const roleIndex = args[1] ? parseInt(args[1]) : null;
-  const customModel = args[3] || null; // args[3] 是 model 参数
-  const stepIndex = args[4] !== undefined ? parseInt(args[4]) : null;
+  const customModel = args[2] || null;  // args[2] 是 model 参数
+  const stepIndex = args[3] !== undefined ? parseInt(args[3]) : null;
   
   if (!sprintId) {
     console.log(`
