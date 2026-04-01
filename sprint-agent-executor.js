@@ -1100,11 +1100,20 @@ ${openSpecOutput}
 
   // 如果指定了 stepIndex，返回对应步骤的 prompt
   if (stepIndex !== null && stepIndex >= 0 && stepIndex < stepPrompts.length) {
-    return stepPrompts[stepIndex];
+    let prompt = stepPrompts[stepIndex];
+    // 替换占位符
+    if (codePath) {
+      prompt = prompt.replace(/CODE_DIR_PLACEHOLDER/g, codePath + '/');
+    }
+    return prompt;
   }
   
   // 默认返回完整 prompt（第4步）
-  return stepPrompts[3];
+  let defaultPrompt = stepPrompts[3];
+  if (codePath) {
+    defaultPrompt = defaultPrompt.replace(/CODE_DIR_PLACEHOLDER/g, codePath + '/');
+  }
+  return defaultPrompt;
 }
 
 /**
@@ -1156,8 +1165,8 @@ ${techContext}
 ## 你的任务
 ### 执行前准备
 首先创建目录结构（如果不存在）：
-```
-${projectDir}/
+'''
+CODE_DIR_PLACEHOLDER
 ├── backend/
 │   └── src/
 │       ├── routes/
@@ -1171,7 +1180,7 @@ ${projectDir}/
         ├── components/
         ├── api/
         └── store/
-```
+'''
 
 ### 然后确认实现范围
 1. 读取 OpenSpec Change Proposal:
