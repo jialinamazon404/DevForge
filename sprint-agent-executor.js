@@ -1129,8 +1129,26 @@ ${techContext}
 - 代码目录: ${projectDir}
 
 ## 你的任务
-读取 OpenSpec change + 现有代码，确认实现范围：
+### 执行前准备
+首先创建目录结构（如果不存在）：
+```
+${projectDir}/
+├── backend/
+│   └── src/
+│       ├── routes/
+│       ├── models/
+│       ├── middleware/
+│       ├── utils/
+│       └── data/
+└── frontend/
+    └── src/
+        ├── pages/
+        ├── components/
+        ├── api/
+        └── store/
+```
 
+### 然后确认实现范围
 1. 读取 OpenSpec Change Proposal:
    - \`${wsPath}/../openspec/changes/*/proposal.md\` (需求背景)
    - \`${wsPath}/../openspec/changes/*/design.md\` (技术设计)
@@ -1165,10 +1183,10 @@ ${techContext}
 读取 tasks.md，确认总任务数，执行任务 1-10。
 
 ### ⚠️ 强制要求（必须遵守）
-- **直接执行任务，不要询问是否可以继续**
-- **不要输出 "Should I proceed?" 或类似确认请求**
+- **必须使用 Write 工具将代码写入文件，不要只输出到控制台**
+- **每完成一个任务后，必须调用 Write 工具保存代码到 ${projectDir}/**
+- 直接执行任务，不要询问是否可以继续
 - 如果代码已存在，验证并补充完整
-- 发现问题直接修复，继续下一个任务
 
 ## 输出
 每次任务完成输出 "[任务X] 完成: 任务描述"
@@ -1275,11 +1293,14 @@ ${rawInput}
 - 代码目录: ${projectDir}
 
 ## 你的任务
-生成开发文档：
+生成开发文档（必须使用 Write 工具写入文件）：
 
-1. \`${wsPath}/developer/README.md\` - 运行说明
-2. \`${wsPath}/developer/API.md\` - 接口文档
-3. \`${wsPath}/developer/dev-summary.md\` - 开发摘要
+1. \`${projectDir}/README.md\` - 项目运行说明
+2. \`${projectDir}/API.md\` - 接口文档
+3. \`${projectDir}/dev-summary.md\` - 开发摘要
+
+## ⚠️ 强制要求
+- **必须使用 Write 工具将文档写入文件**
 
 ## 输出
 完成后列出所有生成的文件
