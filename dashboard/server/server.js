@@ -729,7 +729,7 @@ app.post('/api/sprints/:sprintId/iterations/:roleIndex/execute', async (req, res
     // 读取模型配置
     let modelConfig = {}
     try {
-      const configPath = path.join(ROOT, '..', 'model-config.json')
+      const configPath = path.join(ROOT, 'model-config.json')
       const configData = await fs.readFile(configPath, 'utf-8')
       modelConfig = JSON.parse(configData)
     } catch (e) {
