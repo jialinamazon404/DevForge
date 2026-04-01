@@ -1218,34 +1218,37 @@ projects/${pipelineId}/src/
 ## 输出
 确认范围后直接输出任务列表到控制台，然后开始执行 Step 2
 `,
-    // 步骤 2: 第1批任务 (1-10)
-    `# 角色：开发者 - 步骤 2/7：按 tasks.md 执行（第1批: 任务 1-10）
+    // 步骤 2: 第1批任务
+    `# 角色：开发者 - 步骤 2/7：按 tasks.md 执行（第一批任务）
 
 ## 任务清单位置（必须读取）
 文件: /Users/jialin.chen/WorkSpace/DevForge/projects/0409e4e9-87aa-4113-8416-0373a52dab10/openspec/changes/sprint-1-admin-system/tasks.md
 
+**重要**：tasks.md 中的任务是 Markdown 复选框格式，如：
+- [ ] 1.1 创建项目目录结构
+- [ ] 1.2 初始化前端 package.json
+- [ ] 2.1 配置 Drizzle ORM
+
+请按顺序执行这些任务，每完成一个就用 Write 工具写代码到：
+/Users/jialin.chen/WorkSpace/DevForge/projects/0409e4e9-87aa-4113-8416-0373a52dab10/src/
+
 ## 用户需求
 ${rawInput}
-${specContext}
-${techContext}
 
 ## 工作目录
-- 执行记录: /Users/jialin.chen/WorkSpace/DevForge/workspace/0409e4e9-87aa-4113-8416-0373a52dab10-fd36c19d
+- 执行记录: /Users/jialin.chen/WorkSpace/DevForge/workspace/0409e4e9-87aa-4113-8416-0373a52dab10-6c609466
 - 代码目录: /Users/jialin.chen/WorkSpace/DevForge/projects/0409e4e9-87aa-4113-8416-0373a52dab10/src
 
 ## 你的任务
-首先读取 tasks.md 文件，确认任务总数，然后执行任务 1-10。
+首先读取 tasks.md 文件，然后按顺序执行任务。从第一个任务开始，一直执行到完成所有任务。
 
 ### ⚠️ 强制要求（必须遵守）
 - **必须使用 Write 工具将代码写入文件，不要只输出到控制台**
-- **每完成一个任务后，必须调用 Write 工具保存代码到 /Users/jialin.chen/WorkSpace/DevForge/projects/0409e4e9-87aa-4113-8416-0373a52dab10/src/**
-- 代码保存路径示例：
-  - 后端: /Users/jialin.chen/WorkSpace/DevForge/projects/0409e4e9-87aa-4113-8416-0373a52dab10/src/backend/src/routes/*.ts
-  - 前端: /Users/jialin.chen/WorkSpace/DevForge/projects/0409e4e9-87aa-4113-8416-0373a52dab10/src/frontend/src/pages/*.tsx
+- 代码保存路径: /Users/jialin.chen/WorkSpace/DevForge/projects/0409e4e9-87aa-4113-8416-0373a52dab10/src/
+- 直接执行任务，不要询问是否可以继续
 
 ## 输出
-每次任务完成输出 "[任务X] 完成: 任务描述"
-代码保存到 /Users/jialin.chen/WorkSpace/DevForge/projects/0409e4e9-87aa-4113-8416-0373a52dab10/src/
+每完成一个任务输出 "[任务X.X] 完成: 任务描述"
 完成后继续下一步
 `,
     // 步骤 3: 第2批任务 (11-20)
@@ -1269,11 +1272,11 @@ ${rawInput}
 - 代码保存路径: /Users/jialin.chen/WorkSpace/DevForge/projects/0409e4e9-87aa-4113-8416-0373a52dab10/src/
 
 ## 输出
-每次任务完成输出 "[任务X] 完成: 任务描述"
-完成后继续下一步
+每完成一个任务输出 "[任务X.X] 完成: 任务描述"
+完成后继续执行剩余任务，直到全部完成
 `,
-    // 步骤 4: 第3批任务 (21-30)
-    `# 角色：开发者 - 步骤 4/7：按 tasks.md 执行（第3批: 任务 21-30）
+    // 步骤 4-7: 继续执行任务（合并为一步）
+    `# 角色：开发者 - 步骤 3-7：按 tasks.md 继续执行
 
 ## 任务清单位置
 文件: /Users/jialin.chen/WorkSpace/DevForge/projects/0409e4e9-87aa-4113-8416-0373a52dab10/openspec/changes/sprint-1-admin-system/tasks.md
@@ -1282,30 +1285,22 @@ ${rawInput}
 ${rawInput}
 
 ## 工作目录
-- 执行记录: /Users/jialin.chen/WorkSpace/DevForge/workspace/0409e4e9-87aa-4113-8416-0373a52dab10-fd36c19d
+- 执行记录: /Users/jialin.chen/WorkSpace/DevForge/workspace/0409e4e9-87aa-4113-8416-0373a52dab10-6c609466
 - 代码目录: /Users/jialin.chen/WorkSpace/DevForge/projects/0409e4e9-87aa-4113-8416-0373a52dab10/src
 
 ## 你的任务
-继续执行任务 21-30。
+继续执行剩余任务，从上一步暂停的地方继续，一直执行到 tasks.md 中所有任务完成。
 
 ### ⚠️ 强制要求（必须遵守）
-- **必须使用 Write 工具将代码写入文件**
+- **必须使用 Write 工具将代码写入文件，不要只输出到控制台**
 - 代码保存路径: /Users/jialin.chen/WorkSpace/DevForge/projects/0409e4e9-87aa-4113-8416-0373a52dab10/src/
 
 ## 输出
-每次任务完成输出 "[任务X] 完成: 任务描述"
-完成后继续下一步
+每完成一个任务输出 "[任务X.X] 完成: 任务描述"
+全部完成后进入 Step 7 生成文档
 `,
-    // 步骤 5: 第4批任务 (31-40)
-    `# 角色：开发者 - 步骤 5/7：按 tasks.md 执行（第4批: 任务 31-40）
-
-## 任务清单位置
-文件: /Users/jialin.chen/WorkSpace/DevForge/projects/0409e4e9-87aa-4113-8416-0373a52dab10/openspec/changes/sprint-1-admin-system/tasks.md
-
-## 用户需求
-${rawInput}
-
-## 工作目录
+    // 步骤 7: 开发文档
+    `# 角色：开发者 - 步骤 7/7：开发文档
 - 执行记录: /Users/jialin.chen/WorkSpace/DevForge/workspace/0409e4e9-87aa-4113-8416-0373a52dab10-fd36c19d
 - 代码目录: /Users/jialin.chen/WorkSpace/DevForge/projects/0409e4e9-87aa-4113-8416-0373a52dab10/src
 
