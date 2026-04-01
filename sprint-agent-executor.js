@@ -1169,10 +1169,8 @@ ${specContext}
 ${techContext}
 
 ## 工作目录
-- 执行记录: /Users/jialin.chen/WorkSpace/DevForge/workspace/<sprintId>
-- 代码目录: /Users/jialin.chen/WorkSpace/DevForge/projects/<projectId>/src
-
-将 <sprintId> 替换为 sprint ID，将 <projectId> 替换为项目 ID
+- 执行记录: /Users/jialin.chen/WorkSpace/DevForge/workspace/0409e4e9-87aa-4113-8416-0373a52dab10-840bbe5f
+- 代码目录: /Users/jialin.chen/WorkSpace/DevForge/projects/0409e4e9-87aa-4113-8416-0373a52dab10/src
 
 ## 你的任务
 ### 执行前准备
@@ -1196,14 +1194,12 @@ projects/${pipelineId}/src/
 
 ### 然后确认实现范围
 1. 读取 OpenSpec Change Proposal:
-   - `/Users/jialin.chen/WorkSpace/DevForge/projects/<projectId>/openspec/changes/*/proposal.md` (需求背景)
-   - `/Users/jialin.chen/WorkSpace/DevForge/projects/<projectId>/openspec/changes/*/design.md` (技术设计)
-   - `/Users/jialin.chen/WorkSpace/DevForge/projects/<projectId>/openspec/changes/*/tasks.md` (任务清单 - **关键**)
+   - /Users/jialin.chen/WorkSpace/DevForge/projects/0409e4e9-87aa-4113-8416-0373a52dab10/openspec/changes/sprint-1-admin-system/proposal.md (需求背景)
+   - /Users/jialin.chen/WorkSpace/DevForge/projects/0409e4e9-87aa-4113-8416-0373a52dab10/openspec/changes/sprint-1-admin-system/design.md (技术设计)
+   - /Users/jialin.chen/WorkSpace/DevForge/projects/0409e4e9-87aa-4113-8416-0373a52dab10/openspec/changes/sprint-1-admin-system/tasks.md (任务清单 - **关键**)
 
 2. 检查现有代码（如有）:
-   - `/Users/jialin.chen/WorkSpace/DevForge/projects/<projectId>/src/`
-
-将 <projectId> 替换为项目 ID（如 0409e4e9-87aa-4113-8416-0373a52dab10）
+   - /Users/jialin.chen/WorkSpace/DevForge/projects/0409e4e9-87aa-4113-8416-0373a52dab10/src/
 
 3. 确认本次实现范围，列出需要实现的任务列表
 
