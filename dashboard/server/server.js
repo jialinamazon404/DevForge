@@ -1313,11 +1313,21 @@ app.get('/api/sprints/:sprintId/files', async (req, res) => {
     const basePath = path.join(ROOT, 'workspace', sprintId);
     
     // 获取 sprint 信息以获取 projectId
-    let projectId = sprintId;
+    let projectId = null;
     try {
       const sprint = sprintManager.sprints?.get?.(sprintId);
       if (sprint?.projectId) projectId = sprint.projectId;
     } catch (e) {}
+    
+    // 如果没有 projectId，从 sprintId 中提取 (格式: {projectId}-{uuid})
+    if (!projectId) {
+      const parts = sprintId.split('-');
+      if (parts.length >= 5) {
+        projectId = parts.slice(0, 5).join('-');
+      } else {
+        projectId = sprintId;
+      }
+    }
     
     const projectPath = path.join(ROOT, 'projects', projectId);
     const projectSrcPath = path.join(projectPath, 'src');
