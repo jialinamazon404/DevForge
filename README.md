@@ -200,9 +200,10 @@ flowchart TD
 - 代码任务必须满足 `fileBlocks > 0 && written > 0`
 - 高风险任务（`high/core`）必须包含测试文件块（例如 `*.test.ts`、`*.spec.ts`、`tests/`）
 - 中低风险任务未输出 `file:` 代码块时，默认输出 `[TASK_WARN]` 并继续；高风险任务默认仍会 `[TASK_FAIL]`
+- 当输出含 `NO_CHANGE: <reason>` 且无 file 块时，默认（`DEVFORGE_NO_CHANGE_COUNTS_AS_TASK_END=true`）记为 **`[TASK_END]`（本条成功）**，不再用 `[TASK_WARN]` 刷失败感
 - 违反门禁的任务会输出 `[TASK_FAIL]`（或 `[TASK_WARN]`），并附带错误码：
   - `NO_FILE_BLOCKS`：未输出任何 `file:` 代码块（warning 或 high/core fail）
-  - `NO_FILE_BLOCKS_NO_CHANGE`：任务声明无需改动（`NO_CHANGE: ...`），按 warning 继续
+  - `NO_FILE_BLOCKS_NO_CHANGE`：仅当 `DEVFORGE_NO_CHANGE_COUNTS_AS_TASK_END=false` 时仍为 warning；默认视为成功见上
   - `CONSECUTIVE_NO_FILE_BLOCKS`：连续多个任务无代码块，触发保护性中断
   - `WRITE_ZERO`：解析到了 `file:` 代码块但未写入文件
   - `MISSING_TEST_FILE_BLOCKS`：高风险任务缺少测试文件块
@@ -222,6 +223,9 @@ flowchart TD
 
 | 变量 | 默认 | 说明 |
 |------|------|------|
+| `DEVFORGE_DEVELOPER_TASK_TIMEOUT_MS` | `900000` | 单条 `tasks.md` 子任务 OpenCode 超时（毫秒，默认 15 分钟） |
+| `DEVFORGE_DEVELOPER_TASK_MAX_RETRIES` | `3` | 可重试错误（如 `TIMEOUT_RETRY`）的最大重试次数 |
+| `DEVFORGE_NO_CHANGE_COUNTS_AS_TASK_END` | `true` | `NO_CHANGE:` 且无 file 块时输出 `[TASK_END]`；`false` 时恢复为 `[TASK_WARN]` |
 | `DEVFORGE_DEVELOPER_SINGLE_TASK` | `false` | Dashboard 单 task 重跑时为 `true`；为 `true` 时**不链式**跑完 developer 全部步骤 |
 | `DEVFORGE_DEVELOPER_SINGLE_TASK_CHAIN` | `false` | 为 `true` 时恢复「单 task 仍链式下一步」的旧行为 |
 | `DEVFORGE_DEVELOPER_TASK_SKILL` | `test-driven-development` | 每条 `tasks.md` 子任务注入的 Skill；设为 `none`/`0`/`false` 关闭 |

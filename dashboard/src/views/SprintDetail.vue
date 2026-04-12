@@ -747,16 +747,35 @@ const pipelineStages = computed(() => {
   })
 })
 
+/** 当前选中阶段内，按流水线顺序第一个有内容的 Agent 输出（只读，不在 computed 里写 editableOutput） */
+const selectedStageOutput = computed(() => {
+  if (!sprint.value?.iterations?.length) return null
+  const stage = pipelineStages.value[activeStageIndex.value]
+  if (!stage) return null
+  for (const agent of stageAgentsSorted(stage)) {
+    const iteration = sprint.value.iterations.find(
+      i => (i.role || '').toLowerCase() === (agent.role || '').toLowerCase()
+    )
+    if (iteration?.output) return iteration.output
+  }
+  return null
+})
+
 // 当前阶段
 const currentStage = computed(() => {
   return pipelineStages.value[activeStageIndex.value] || null
 })
 
-// 当前阶段索引
+// 当前阶段索引（含 failed，避免开发失败后「当前管道」误指第一步）
 const currentStageIndex = computed(() => {
   for (let i = pipelineStages.value.length - 1; i >= 0; i--) {
     const stage = pipelineStages.value[i]
-    if (stage.status === 'completed' || stage.status === 'running' || stage.status === 'waiting_input') {
+    if (
+      stage.status === 'completed' ||
+      stage.status === 'running' ||
+      stage.status === 'waiting_input' ||
+      stage.status === 'failed'
+    ) {
       return i
     }
   }
@@ -787,11 +806,11 @@ function getWorkingAgent(stage) {
   return runningAgent || null
 }
 
-// 检查阶段是否可访问
+// 检查阶段是否可访问（上一阶段已完成/已确认/失败时均可进入，便于查看部署等；执行仍由后端串行校验）
 function isStageAccessible(index) {
   if (index === 0) return true
   const prevStage = pipelineStages.value[index - 1]
-  return prevStage.status === 'completed'
+  return ['completed', 'confirmed', 'failed'].includes(prevStage?.status)
 }
 
 function selectStage(index) {
@@ -800,27 +819,6 @@ function selectStage(index) {
     selectedStage.value = index
   }
 }
-
-// 选中的阶段输出
-const selectedStageOutput = computed(() => {
-  if (!sprint.value?.iterations?.length) return null
-  
-  const stage = pipelineStages.value[activeStageIndex.value]
-  if (!stage) return null
-  
-  // 按流水线顺序展示第一个有内容的输出（技术设计阶段先技术教练、后架构师）
-  for (const agent of stageAgentsSorted(stage)) {
-    const iteration = sprint.value.iterations.find(
-      i => i.role?.toLowerCase() === agent.role?.toLowerCase()
-    )
-    if (iteration?.output) {
-      editableOutput.value = iteration.output
-      return iteration.output
-    }
-  }
-  
-  return null
-})
 
 const selectedStageHistory = computed(() => {
   if (!sprint.value) return null
@@ -854,7 +852,10 @@ const isStageRunning = computed(() => {
 })
 
 const selectedStageTaskMetrics = computed(() => {
-  const output = selectedStageOutput.value || editableOutput.value || ''
+  if (!isDeveloperStageSelected.value) {
+    return parseTaskExecutionMetrics('')
+  }
+  const output = editableOutput.value || selectedStageOutput.value || ''
   return parseTaskExecutionMetrics(output)
 })
 
@@ -1258,6 +1259,7 @@ async function loadSprint() {
   try {
     sprint.value = await store.fetchSprint(props.sprintId)
     updateActiveStageIndex()
+    editableOutput.value = selectedStageOutput.value ?? ''
     if (isDeveloperStageSelected.value) {
       await loadDeveloperTaskConsole()
     }
@@ -1298,6 +1300,7 @@ watch(() => props.sprintId, () => {
 
 watch(activeStageIndex, (val) => {
   selectedStage.value = val
+  editableOutput.value = selectedStageOutput.value ?? ''
 })
 </script>
 

@@ -1531,7 +1531,10 @@ app.post('/api/sprints/:sprintId/iterations/:roleIndex/execute', async (req, res
       }
     }
 
-    // 更新状态为运行中
+    // 更新状态为运行中（从 failed 重跑时清 completedAt，避免残留终态时间）
+    if (iteration.status === 'failed') {
+      iteration.completedAt = null;
+    }
     iteration.status = 'running';
     iteration.startedAt = new Date().toISOString();
     await sprintManager.save(sprint.id);

@@ -93,9 +93,12 @@ function parseIntEnv(name, defaultValue) {
 
 const STRICT_FILE_BLOCK_GATE = parseBoolEnv('STRICT_FILE_BLOCK_GATE', true);
 const HIGH_RISK_TEST_BLOCK_REQUIRED = parseBoolEnv('HIGH_RISK_TEST_BLOCK_REQUIRED', true);
-const DEVELOPER_TASK_TIMEOUT_MS = parseIntEnv('DEVFORGE_DEVELOPER_TASK_TIMEOUT_MS', 600000);
-const DEVELOPER_TASK_MAX_RETRIES = Math.max(0, parseIntEnv('DEVFORGE_DEVELOPER_TASK_MAX_RETRIES', 2));
+/** 单条 developer task 的 OpenCode 超时（默认 15 分钟） */
+const DEVELOPER_TASK_TIMEOUT_MS = parseIntEnv('DEVFORGE_DEVELOPER_TASK_TIMEOUT_MS', 900000);
+const DEVELOPER_TASK_MAX_RETRIES = Math.max(0, parseIntEnv('DEVFORGE_DEVELOPER_TASK_MAX_RETRIES', 3));
 const NO_FILE_BLOCKS_FAIL_HIGH_RISK = parseBoolEnv('DEVFORGE_NO_FILE_BLOCKS_FAIL_HIGH_RISK', true);
+/** 输出 `NO_CHANGE:` 且无 file 块时记为 TASK_END（成功）；false 时仍为 TASK_WARN + NO_FILE_BLOCKS_NO_CHANGE */
+const NO_CHANGE_COUNTS_AS_TASK_END = parseBoolEnv('DEVFORGE_NO_CHANGE_COUNTS_AS_TASK_END', true);
 const DEVELOPER_MAX_CONSECUTIVE_NO_BLOCKS = Math.max(1, parseIntEnv('DEVFORGE_DEVELOPER_MAX_CONSECUTIVE_NO_BLOCKS', 3));
 const DEVELOPER_DUMP_NO_BLOCKS_RAW = parseBoolEnv('DEVFORGE_DEVELOPER_DUMP_NO_BLOCKS_RAW', true);
 // 默认跑“批处理”（严格按 tasks.md 推进）。如需单任务调试，可显式设置 DEVFORGE_DEVELOPER_SINGLE_TASK=1
@@ -728,8 +731,10 @@ async function runDeveloperPerTaskBatch({
         gateErrorCode = 'NO_FILE_BLOCKS';
         gateErrorMessage = '高风险代码任务未输出任何 file blocks';
       } else if (noChangeReason) {
-        gateWarnCode = 'NO_FILE_BLOCKS_NO_CHANGE';
-        gateWarnMessage = `无代码变更: ${noChangeReason}`;
+        if (!NO_CHANGE_COUNTS_AS_TASK_END) {
+          gateWarnCode = 'NO_FILE_BLOCKS_NO_CHANGE';
+          gateWarnMessage = `无代码变更: ${noChangeReason}`;
+        }
       } else {
         gateWarnCode = 'NO_FILE_BLOCKS';
         gateWarnMessage = '代码任务未输出任何 file blocks（按 warning 继续）';
