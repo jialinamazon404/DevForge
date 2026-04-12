@@ -9,8 +9,7 @@ import { ProcessPool } from './process-pool.js';
 // 默认模型配置
 const DEFAULT_POOL_CONFIG = {
   'opencode/qwen3.6-plus-free': { min: 2, max: 5, timeout: 600000 },
-  'opencode/gpt-5-nano': { min: 2, max: 5, timeout: 300000 },
-  'opencode/big-pickle': { min: 2, max: 4, timeout: 300000 }
+  'opencode/gpt-5-nano': { min: 2, max: 5, timeout: 300000 }
 };
 
 export class PoolManager {
@@ -74,7 +73,7 @@ export class PoolManager {
    * 执行任务（自动选择合适的池）
    */
   async execute(task) {
-    const model = task.model || 'opencode/big-pickle';
+    const model = task.model || 'opencode/gpt-5-nano';
     const pool = await this.getOrCreatePool(model);
     return pool.execute(task);
   }

@@ -8,20 +8,48 @@ import { PoolManager } from './pool-manager.js';
 import { TaskScheduler } from './task-scheduler.js';
 import { CacheStrategy, SKILL_PATHS } from './cache-strategy.js';
 import { ContentExtractor } from './content-extractor.js';
+import { OpenCodeBackend } from './opencode-backend.js';
 import crypto from 'crypto';
+
+/**
+ * 与 dashboard/server 的 parseBoolEnv 语义一致：未设置时默认 true（不拉起 opencode serve）。
+ * 需要 attach 时设置 DEVFORGE_DISABLE_OPENCODE_ATTACH=0 或 false。
+ */
+function opencodeAttachDisabled() {
+  const raw = process.env.DEVFORGE_DISABLE_OPENCODE_ATTACH;
+  if (raw === undefined || raw === null || raw === '') return true;
+  const v = String(raw).trim().toLowerCase();
+  if (['1', 'true', 'yes', 'on'].includes(v)) return true;
+  if (['0', 'false', 'no', 'off'].includes(v)) return false;
+  return true;
+}
 
 export class HarnessManager {
   constructor(options = {}) {
     this.rootDir = options.rootDir || process.cwd();
-    
-    this.poolManager = new PoolManager({
+    this.mode = options.mode || process.env.DEVFORGE_HARNESS_MODE || 'attach';
+
+    this.opencodeBackend = new OpenCodeBackend({
       rootDir: this.rootDir,
-      config: options.poolConfig
+      hostname: process.env.DEVFORGE_OPENCODE_SERVE_HOST || '127.0.0.1',
+      port: process.env.DEVFORGE_OPENCODE_SERVE_PORT || 4096
     });
-    
-    this.scheduler = new TaskScheduler(this.poolManager, {
-      maxConcurrent: options.maxConcurrent || 3
-    });
+
+    // pool 模式才需要初始化/持有进程池与调度器；attach 模式只负责 opencode serve 管理 + 观测
+    this.poolManager =
+      this.mode === 'pool'
+        ? new PoolManager({
+            rootDir: this.rootDir,
+            config: options.poolConfig
+          })
+        : null;
+
+    this.scheduler =
+      this.mode === 'pool'
+        ? new TaskScheduler(this.poolManager, {
+            maxConcurrent: options.maxConcurrent || 3
+          })
+        : null;
     
     this.cache = new CacheStrategy({
       skillPaths: options.skillPaths || SKILL_PATHS
@@ -46,11 +74,22 @@ export class HarnessManager {
 
     console.log('[HarnessManager] Initializing...');
 
-    // 初始化进程池
-    await this.poolManager.initialize();
+    // 默认 attach 模式：不初始化进程池（当前 pool/worker 基于 `opencode run` 的 stdin JSON 协议不成立）
+    if (this.mode === 'pool') {
+      await this.poolManager?.initialize();
+    }
 
     // 预加载常用 Skills
     await this.preloadSkills();
+
+    // 启动/探活 opencode serve（供 run --attach 复用后端）；禁用 attach 时不占用 4096、不 spawn
+    if (opencodeAttachDisabled()) {
+      console.log(
+        '[HarnessManager] DEVFORGE_DISABLE_OPENCODE_ATTACH: 跳过 opencode serve（sprint-agent-executor 将使用纯 opencode run）'
+      );
+    } else {
+      await this.opencodeBackend.ensureStarted();
+    }
 
     this._initialized = true;
     console.log('[HarnessManager] Initialized');
@@ -71,18 +110,25 @@ export class HarnessManager {
     ];
 
     console.log('[HarnessManager] Preloading skills...');
-    
+
+    let loaded = 0;
     for (const skill of commonSkills) {
-      await this.cache.getSkill(skill);
+      const content = await this.cache.getSkill(skill);
+      if (content) loaded++;
     }
 
-    console.log(`[HarnessManager] Preloaded ${commonSkills.length} skills`);
+    console.log(
+      `[HarnessManager] Skill cache: ${loaded}/${commonSkills.length} loaded (missing paths are OK; opencode may load skills elsewhere)`
+    );
   }
 
   /**
    * 执行角色任务
    */
   async executeRole(role, context) {
+    if (this.mode !== 'pool') {
+      throw new Error('Harness is in attach mode; executeRole is disabled (use Sprint executor with opencode run --attach).');
+    }
     const startTime = Date.now();
 
     try {
@@ -131,6 +177,9 @@ export class HarnessManager {
    * 执行角色任务（直接传入 prompt）
    */
   async executePrompt(role, prompt, options = {}) {
+    if (this.mode !== 'pool') {
+      throw new Error('Harness is in attach mode; executePrompt is disabled.');
+    }
     const startTime = Date.now();
 
     try {
@@ -190,9 +239,15 @@ export class HarnessManager {
       avgTime: this.stats.tasks > 0 
         ? Math.round(this.stats.totalTime / this.stats.tasks) 
         : 0,
-      pools: this.poolManager.getAllStats(),
+      pools: this.mode === 'pool' ? this.poolManager?.getAllStats?.() || {} : {},
       cache: this.cache.getStats(),
-      scheduler: this.scheduler.getStats()
+      scheduler: this.mode === 'pool' ? this.scheduler?.getStats?.() || {} : {},
+      opencode: {
+        mode: this.mode,
+        attachUrl: this.opencodeBackend.getAttachUrl(),
+        running: this.opencodeBackend.isRunning(),
+        lastHealth: this.opencodeBackend.lastHealth
+      }
     };
   }
 
@@ -200,12 +255,14 @@ export class HarnessManager {
    * 健康检查
    */
   async healthCheck() {
-    const poolHealth = await this.poolManager.healthCheck();
+    const poolHealth = this.mode === 'pool' ? await this.poolManager?.healthCheck?.() : null;
+    const opencode = await this.opencodeBackend.healthCheck();
     
     return {
       initialized: this._initialized,
       poolHealth,
-      cacheHitRate: this.cache.getHitRate()
+      cacheHitRate: this.cache.getHitRate(),
+      opencode
     };
   }
 
@@ -213,7 +270,9 @@ export class HarnessManager {
    * 清理 sprint 数据
    */
   clearSprint(sprintId) {
-    this.scheduler.clearSprint(sprintId);
+    if (this.mode === 'pool') {
+      this.scheduler?.clearSprint?.(sprintId);
+    }
   }
 
   /**
@@ -221,7 +280,10 @@ export class HarnessManager {
    */
   async shutdown() {
     console.log('[HarnessManager] Shutting down...');
-    await this.poolManager.shutdown();
+    if (this.mode === 'pool') {
+      await this.poolManager?.shutdown?.();
+    }
+    await this.opencodeBackend.shutdown();
     this.cache.clear();
     console.log('[HarnessManager] Shutdown complete');
   }

@@ -7,26 +7,11 @@
  * L4: Extracted Content Cache - 提炼后的内容
  */
 
-import fs from 'fs/promises';
-import path from 'path';
 import crypto from 'crypto';
-
-// Skill 路径映射
-const SKILL_PATHS = {
-  brainstorming: '/Users/jialin.chen/.cache/opencode/node_modules/superpowers/skills/brainstorming/SKILL.md',
-  'user-story': '/Users/jialin.chen/.agents/skills/user-story/SKILL.md',
-  'product-spec-kit': '/Users/jialin.chen/.agents/skills/product-spec-kit/SKILL.md',
-  'system-design': '/Users/jialin.chen/.agents/skills/system-design/SKILL.md',
-  'api-design': '/Users/jialin.chen/.agents/skills/api-design-principles/SKILL.md',
-  'database-design': '/Users/jialin.chen/.agents/skills/database-design/SKILL.md',
-  'test-driven-development': '/Users/jialin.chen/.cache/opencode/node_modules/superpowers/skills/test-driven-development/SKILL.md',
-  'docker-helper': '/Users/jialin.chen/.agents/skills/docker-helper/SKILL.md',
-  'azure-deploy': '/Users/jialin.chen/.agents/skills/azure-deploy/SKILL.md',
-  'plan-eng-review': '/Users/jialin.chen/.claude/skills/gstack/plan-eng-review/SKILL.md',
-  qa: '/Users/jialin.chen/.claude/skills/gstack/qa/SKILL.md',
-  ship: '/Users/jialin.chen/.claude/skills/gstack/ship/SKILL.md',
-  cso: '/Users/jialin.chen/.claude/skills/gstack/cso/SKILL.md'
-};
+import {
+  SKILL_PATHS as DEFAULT_SKILL_PATHS,
+  readSkillWithFallback
+} from '../config/skillPaths.js';
 
 // 缓存大小限制
 const CACHE_LIMITS = {
@@ -53,7 +38,7 @@ export class CacheStrategy {
       size: 0
     };
 
-    this.skillPaths = options.skillPaths || SKILL_PATHS;
+    this.skillPaths = options.skillPaths || DEFAULT_SKILL_PATHS;
   }
 
   // ===== L1: Skill 缓存（可全局共享）=====
@@ -65,32 +50,32 @@ export class CacheStrategy {
       return cached.content;
     }
 
-    const skillPath = this.skillPaths[skillName];
-    if (!skillPath) {
-      return null;
-    }
-
-    try {
-      const content = await fs.readFile(skillPath, 'utf-8');
-      
-      // 跳过过大的 Skill
-      if (content.length > CACHE_LIMITS.SINGLE_SKILL_MAX) {
-        console.warn(`[Cache] Skill ${skillName} too large (${(content.length / 1024).toFixed(1)}KB), skipping cache`);
-        return content;
+    const result = await readSkillWithFallback(skillName, this.skillPaths);
+    if ('error' in result) {
+      if (result.error === 'missing') {
+        console.warn(
+          `[Cache] Skill not found (set DEVFORGE_SUPERPOWERS_SKILLS or copy to ${result.fallback}): ${result.primary}`
+        );
       }
-
-      this.layers.L1.set(skillName, {
-        content,
-        size: content.length,
-        loadedAt: Date.now()
-      });
-
-      this.stats.misses++;
-      return content;
-    } catch (error) {
-      console.warn(`[Cache] Cannot load skill ${skillName}: ${error.message}`);
       return null;
     }
+
+    const content = result.content;
+
+    // 跳过过大的 Skill
+    if (content.length > CACHE_LIMITS.SINGLE_SKILL_MAX) {
+      console.warn(`[Cache] Skill ${skillName} too large (${(content.length / 1024).toFixed(1)}KB), skipping cache`);
+      return content;
+    }
+
+    this.layers.L1.set(skillName, {
+      content,
+      size: content.length,
+      loadedAt: Date.now()
+    });
+
+    this.stats.misses++;
+    return content;
   }
 
   hasSkill(skillName) {
@@ -264,7 +249,7 @@ export class CacheStrategy {
 }
 
 // Skill 到文件路径的映射（供外部使用）
-export { SKILL_PATHS };
+export { DEFAULT_SKILL_PATHS as SKILL_PATHS };
 
 // 缓存限制常量
 export { CACHE_LIMITS };

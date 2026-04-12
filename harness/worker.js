@@ -52,6 +52,7 @@ export class Worker {
     this._initialized = false;
     this._closed = false;
     this._timeoutId = null;
+    this._initFailureCode = null;
   }
 
   /**
@@ -62,7 +63,10 @@ export class Worker {
 
     return new Promise((resolve, reject) => {
       const timeoutId = setTimeout(() => {
-        reject(new Error(`Worker ${this.id} initialization timeout`));
+        const err = new Error(`Worker ${this.id} initialization timeout`);
+        err.errorCode = 'INIT_TIMEOUT';
+        this._initFailureCode = 'INIT_TIMEOUT';
+        reject(err);
       }, 30000);
 
       this.once('ready', () => {
@@ -95,13 +99,17 @@ export class Worker {
     
     this.process.on('error', (err) => {
       this.status = WorkerStatus.ERROR;
+      err.errorCode = err.errorCode || 'SPAWN_ERROR';
+      this._initFailureCode = this._initFailureCode || err.errorCode;
       this.emit('error', err);
     });
 
-    this.process.on('close', (code) => {
+    this.process.on('close', (code, signal) => {
       if (!this._closed) {
         this.status = WorkerStatus.ERROR;
-        this.emit('error', new Error(`Worker ${this.id} exited with code ${code}`));
+        const err = this._buildExitError(code, signal);
+        this._initFailureCode = this._initFailureCode || err.errorCode;
+        this.emit('error', err);
       }
     });
 
@@ -116,9 +124,8 @@ export class Worker {
     this.outputBuffer.push(text);
 
     // 检测就绪信号
-    if (!this._initialized && text.includes('ready')) {
-      this.status = WorkerStatus.IDLE;
-      this.emit('ready');
+    if (!this._initialized && /\bready\b/i.test(text)) {
+      this._markReady('ready_keyword');
     }
 
     // 解析 JSON 响应
@@ -126,6 +133,9 @@ export class Worker {
     for (const line of lines) {
       try {
         const event = JSON.parse(line);
+        if (!this._initialized) {
+          this._markReady('json_event');
+        }
         this._handleEvent(event);
       } catch {
         // 非 JSON，当作流式输出
@@ -140,6 +150,27 @@ export class Worker {
   _handleStderr(data) {
     const text = data.toString();
     console.warn(`[Worker ${this.id}] stderr: ${text}`);
+    if (!this._initialized && /\bready\b/i.test(text)) {
+      this._markReady('stderr_ready_keyword');
+    }
+  }
+
+  _buildExitError(code, signal) {
+    const isNullCode = code === null || code === undefined;
+    const errorCode = isNullCode ? 'WORKER_EXIT_NULL' : 'WORKER_EXIT_CODE';
+    const err = new Error(
+      `Worker ${this.id} exited unexpectedly (code=${String(code)}, signal=${String(signal || 'none')})`
+    );
+    err.errorCode = errorCode;
+    err.exitCode = code;
+    err.signal = signal || null;
+    return err;
+  }
+
+  _markReady(source) {
+    if (this._initialized || this._closed) return;
+    this.status = WorkerStatus.IDLE;
+    this.emit('ready', { source });
   }
 
   /**

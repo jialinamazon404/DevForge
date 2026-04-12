@@ -28,7 +28,10 @@ export class ProcessPool {
       completedTasks: 0,
       failedTasks: 0,
       totalTime: 0,
-      avgTime: 0
+      avgTime: 0,
+      workerErrorsByCode: {},
+      spawnFailuresByCode: {},
+      lastError: null
     };
   }
 
@@ -64,7 +67,15 @@ export class ProcessPool {
     });
 
     worker.on('error', (err) => {
-      console.error(`[Pool:${this.model}] Worker ${worker.id} error:`, err.message);
+      const code = err?.errorCode || 'UNKNOWN_WORKER_ERROR';
+      this.stats.workerErrorsByCode[code] = (this.stats.workerErrorsByCode[code] || 0) + 1;
+      this.stats.lastError = {
+        source: 'worker',
+        code,
+        message: err?.message || 'unknown worker error',
+        at: new Date().toISOString()
+      };
+      console.error(`[Pool:${this.model}] Worker ${worker.id} error [${code}]:`, err.message);
       this._handleWorkerError(worker);
     });
 
@@ -75,7 +86,15 @@ export class ProcessPool {
       console.log(`[Pool:${this.model}] Worker ${worker.id} spawned (total: ${this.workers.size})`);
       return worker;
     } catch (error) {
-      console.error(`[Pool:${this.model}] Failed to spawn worker:`, error.message);
+      const code = error?.errorCode || 'SPAWN_FAILED';
+      this.stats.spawnFailuresByCode[code] = (this.stats.spawnFailuresByCode[code] || 0) + 1;
+      this.stats.lastError = {
+        source: 'spawn',
+        code,
+        message: error?.message || 'spawn failed',
+        at: new Date().toISOString()
+      };
+      console.error(`[Pool:${this.model}] Failed to spawn worker [${code}]:`, error.message);
       return null;
     }
   }
