@@ -16,6 +16,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { spawn } from 'child_process';
 import axios from 'axios';
+import { readSkillWithFallback } from './config/skillPaths.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = __dirname;
@@ -23,16 +24,6 @@ const WORKSPACE = path.join(ROOT, 'workspace');
 
 // 从命令行参数获取 API_BASE，或使用默认值
 const API_BASE = process.argv.find(arg => arg.startsWith('API_BASE='))?.split('=')[1] || 'http://localhost:3000';
-
-// Skill 路径映射
-const SKILL_PATHS = {
-  brainstorming: '/Users/jialin.chen/.cache/opencode/node_modules/superpowers/skills/brainstorming/SKILL.md',
-  'plan-eng-review': '/Users/jialin.chen/.claude/skills/gstack/plan-eng-review/SKILL.md',
-  qa: '/Users/jialin.chen/.claude/skills/gstack/qa/SKILL.md',
-  'test-driven-development': '/Users/jialin.chen/.cache/opencode/node_modules/superpowers/skills/test-driven-development/SKILL.md',
-  ship: '/Users/jialin.chen/.claude/skills/gstack/ship/SKILL.md',
-  cso: '/Users/jialin.chen/.claude/skills/gstack/cso/SKILL.md'
-};
 
 // 角色与 Skill 映射
 const ROLE_SKILLS = {
@@ -84,21 +75,24 @@ const ROLE_INFO = {
 };
 
 /**
- * 加载 Skill 内容
+ * 加载 Skill 内容（主路径 + 仓库 vendor 回退，路径见 config/skillPaths.js）
  */
 async function loadSkill(skillName) {
-  const skillPath = SKILL_PATHS[skillName];
-  if (!skillPath) {
-    console.log(`   ⚠️ 未找到 Skill: ${skillName}`);
+  const result = await readSkillWithFallback(skillName);
+  if ('error' in result) {
+    if (result.error === 'unconfigured') {
+      console.log(`   ⚠️ 未配置 Skill: ${skillName}`);
+    } else {
+      console.log(
+        `   ⚠️ Skill 文件不存在: ${skillName}\n      主路径: ${result.primary}\n      可设置 DEVFORGE_SUPERPOWERS_SKILLS 或复制到: ${result.fallback}`
+      );
+    }
     return null;
   }
-  try {
-    const content = await fs.readFile(skillPath, 'utf-8');
-    return content;
-  } catch (e) {
-    console.log(`   ❌ 无法加载 Skill: ${skillPath}`);
-    return null;
+  if (result.usedFallback) {
+    console.log(`   📎 使用仓库内技能副本: ${result.path}`);
   }
+  return result.content;
 }
 
 /**
