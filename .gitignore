@@ -9,3 +9,8 @@ state/
 # Runtime data - do not commit
 projects/
 workspace/
+
+# Local agent / cache directories (do not commit)
+.omc/
+.tmp_cache/
+.tmp_home/
